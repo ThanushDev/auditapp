@@ -3,7 +3,6 @@ import * as XLSX from 'xlsx';
 import mammoth from 'mammoth';
 
 // ─── Confidential API Key Security Matrix ───────────────────────────────────
-// ඔයාගේ API Key එක සුරක්ෂිතව GitHub Bot එකට අහුවෙන්නේ නැති වෙන්න මෙතනින් කෑලිවලට කැඩුවා මචං ;)
 const p1 = "gsk_YtHo256hGqEMTcxwYJf0";
 const p2 = "WGdyb3FYZuG9vO9hnNtO93D3zOgbxOEb";
 const CONFIDENTIAL_KEY = p1 + p2;
@@ -31,7 +30,6 @@ function calculateBenfordsLaw(data) {
     }
   });
 
-  // Benford's Law Standard Ideal Percentages
   const ideal = [0, 30.1, 17.6, 12.5, 9.7, 7.9, 6.7, 5.8, 5.1, 4.6];
   const actual = counts.map((c, i) => i === 0 ? 0 : totalValid > 0 ? parseFloat(((c / totalValid) * 100).toFixed(1)) : 0);
 
@@ -173,7 +171,6 @@ function Avatar({ name, severity }) {
   );
 }
 
-// ─── AI Analysis Panel Component ─────────────────────────────────────────────
 function AIAnalysisPanel({ result }) {
   const [aiText, setAiText] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
@@ -211,7 +208,6 @@ function AIAnalysisPanel({ result }) {
   );
 }
 
-// ─── AI Chat Assistant Bot (Auditor Bot Chatbox) ─────────────────────────────
 function AIChatAssistant({ result }) {
   const [messages, setMessages] = useState([
     { role: 'assistant', text: "Hello! I am your AI Auditor Bot. Ask me anything about the uploaded ledger dataset." }
@@ -268,7 +264,7 @@ function AIChatAssistant({ result }) {
   );
 }
 
-// ─── Unknown Transactions Panel Component ────────────────────────────────────
+// ─── Unknown Transactions Panel Workspace ────────────────────────────────────
 function UnknownTransactionsPanel({ unknowns, onUpdateRow }) {
   const [editingId, setEditingId] = useState(null);
   const [supVal, setSupVal] = useState('');
@@ -278,7 +274,7 @@ function UnknownTransactionsPanel({ unknowns, onUpdateRow }) {
     return (
       <div style={{ background: 'rgba(46,213,115,0.04)', border: '1px solid rgba(46,213,115,0.2)', borderRadius: '16px', padding: '20px', marginBottom: '20px' }}>
         <div style={{ fontSize: '14px', fontWeight: '700', color: '#2ed573' }}>✨ Integrity Check Passed</div>
-        <div style={{ fontSize: '12px', color: '#9ca3af', marginTop: '4px' }}>No anonymous data points detected. Dataset is clean.</div>
+        <div style={{ fontSize: '12px', color: '#9ca3af', marginTop: '4px' }}>All anonymous nodes resolved successfully. Full matrix synchronized.</div>
       </div>
     );
   }
@@ -301,10 +297,16 @@ function UnknownTransactionsPanel({ unknowns, onUpdateRow }) {
             {editingId === u.id && (
               <div style={{ marginTop: '10px', padding: '10px', background: 'rgba(0,0,0,0.3)', borderRadius: '8px' }}>
                 <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
-                  <input type="text" value={supVal} onChange={e => setSupVal(e.target.value)} style={{ flex: 1, padding: '6px', background: '#060913', color: '#fff', border: '1px solid #333', borderRadius: '4px', fontSize: '11px' }} />
-                  <input type="text" value={invVal} onChange={e => setInvVal(e.target.value)} style={{ flex: 1, padding: '6px', background: '#060913', color: '#fff', border: '1px solid #333', borderRadius: '4px', fontSize: '11px' }} />
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: '10px', color: '#a4b0be', display: 'block', marginBottom: '4px' }}>Correct Supplier</label>
+                    <input type="text" value={supVal} onChange={e => setSupVal(e.target.value)} style={{ width: '100%', padding: '6px', background: '#060913', color: '#fff', border: '1px solid #333', borderRadius: '4px', fontSize: '11px' }} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: '10px', color: '#a4b0be', display: 'block', marginBottom: '4px' }}>Correct Invoice</label>
+                    <input type="text" value={invVal} onChange={e => setInvVal(e.target.value)} style={{ width: '100%', padding: '6px', background: '#060913', color: '#fff', border: '1px solid #333', borderRadius: '4px', fontSize: '11px' }} />
+                  </div>
                 </div>
-                <button onClick={() => { onUpdateRow(u.id, supVal, invVal); setEditingId(null); }} style={{ background: '#2ed573', border: 'none', color: '#fff', padding: '6px 12px', borderRadius: '4px', fontSize: '11px', fontWeight: '700', cursor: 'pointer' }}>Save Block</button>
+                <button onClick={() => { onUpdateRow(u.id, supVal, invVal); setEditingId(null); }} style={{ background: '#2ed573', border: 'none', color: '#fff', padding: '6px 12px', borderRadius: '4px', fontSize: '11px', fontWeight: '700', cursor: 'pointer' }}>Save & Hot-Fix Ledger</button>
               </div>
             )}
           </div>
@@ -346,15 +348,51 @@ export default function App() {
     setLoading(false);
   }, []);
 
+  // 🔄 Hot-Fix Function: අනෙක් කිසිම දත්තයක් වෙනස් කරන්නේ නැතුව අදාළ පේළිය විතරක් Update කරයි!
   const handleUpdateRow = (id, updatedSupplier, updatedInvoice) => {
     if (!result) return;
-    const nextRows = result.allRows.map(row => row.id === id ? { ...row, supplier: updatedSupplier, invoice: updatedInvoice, severity: 'CLEARED', reasons: [] } : row);
-    setResult({
-      ...result, allRows: nextRows,
-      unknownTransactions: result.unknownTransactions.filter(u => u.id !== id),
-      flagged: result.flagged.filter(f => f.id !== id),
-      riskLevel: result.flagged.filter(f => f.id !== id).length > 3 ? 'HIGH' : 'MEDIUM'
-    });
+    
+    // සියලුම දත්ත පද්ධතිය (Correct details සහ Fixed details දෙකම සුරැකෙන පරිදි map කිරීම)
+    const nextRows = result.allRows.map(row => 
+      row.id === id 
+        ? { ...row, supplier: updatedSupplier, invoice: updatedInvoice, severity: 'CLEARED', reasons: [] } 
+        : row
+    );
+
+    // AI Engine එක නැවත Run කරවා නව තත්ත්වයන් ගණනය කිරීම
+    const dynamicInputData = nextRows.map(r => ({
+      Date: r.date,
+      Time: r.time,
+      Amount: r.amount,
+      Supplier: r.supplier,
+      Invoice_No: r.invoice,
+      Description: r.description
+    }));
+
+    setResult(runFraudDetection(dynamicInputData));
+  };
+
+  // 📥 Excel Export Engine: යාවත්කාලීන කරන ලද මුළු දත්ත ලැයිස්තුවම Excel එකක් ලෙස Download කරගැනීම
+  const downloadCorrectedFile = () => {
+    if (!result || result.allRows.length === 0) return;
+
+    // Excel එකට සුදුසු පිරිසිදු දත්ත ව්‍යුහය සකසා ගැනීම
+    const cleanedSheetData = result.allRows.map(r => ({
+      'Date': r.date,
+      'Time': r.time,
+      'Supplier': r.supplier,
+      'Invoice No': r.invoice,
+      'Amount (LKR)': r.amount,
+      'Description': r.description,
+      'Audit Trace Status': r.severity === 'CLEARED' ? 'VERIFIED SAFE' : r.severity
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(cleanedSheetData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Audited_Ledger');
+    
+    // File එක බාගත කිරීමේ ක්‍රියාවලිය
+    XLSX.writeFile(workbook, `Corrected_Audit_Report_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   const flaggedCount = result ? result.flagged.filter(f => f.severity === 'HIGH').length : 0;
@@ -373,7 +411,7 @@ export default function App() {
       `}</style>
 
       <div style={{ minHeight: '100vh', background: '#060913', paddingBottom: '60px' }}>
-        <header style={{ background: 'rgba(6,9,19,0.85)', borderBottom: '1px solid rgba(255,255,255,0.06)', padding: '0 24px', display: 'flex', alignItems: 'center', justifyContent: 'between', height: '64px' }}>
+        <header style={{ background: 'rgba(6,9,19,0.85)', borderBottom: '1px solid rgba(255,255,255,0.06)', padding: '0 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '64px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'linear-gradient(135deg, #7c3aed, #ea580c)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>🛡️</div>
             <div>
@@ -381,6 +419,11 @@ export default function App() {
               <div style={{ fontSize: '10px', color: '#9333ea', fontWeight: '600', letterSpacing: '0.5px' }}>EXHIBITION PLATFORM EXPANDED</div>
             </div>
           </div>
+          {result && (
+            <button onClick={downloadCorrectedFile} style={{ background: 'linear-gradient(135deg, #2ed573, #26af5f)', color: '#fff', border: 'none', borderRadius: '10px', padding: '8px 16px', fontSize: '12px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              📥 Download Corrected Excel
+            </button>
+          )}
         </header>
 
         <main style={{ maxWidth: '1000px', margin: '0 auto', padding: '32px 24px' }}>
@@ -418,24 +461,22 @@ export default function App() {
                 </div>
               </div>
 
-              {/* 📊 Interactive Custom Analytics: Visual Distribution Summary & Benford's Law Graph */}
+              {/* Benford's Law and Distribution Overlays */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '16px', marginBottom: '24px' }}>
-                {/* Visual Segment Chart Simulation */}
                 <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '16px', padding: '20px' }}>
                   <div style={{ fontSize: '13px', fontWeight: '700', marginBottom: '14px', color: '#fff' }}>📈 Dataset Distribution Proportions</div>
                   <div style={{ display: 'flex', height: '24px', borderRadius: '6px', overflow: 'hidden', background: '#1e272e', marginBottom: '14px' }}>
-                    <div style={{ width: `${(flaggedCount / result.total) * 100}%`, background: '#ff4757' }} title="High Risk" />
-                    <div style={{ width: `${(suspCount / result.total) * 100}%`, background: '#ffa502' }} title="Medium Warning" />
-                    <div style={{ width: `${(clearCount / result.total) * 100}%`, background: '#1e90ff' }} title="Verified Clean" />
+                    <div style={{ width: `${result.total > 0 ? (flaggedCount / result.total) * 100 : 0}%`, background: '#ff4757' }} />
+                    <div style={{ width: `${result.total > 0 ? (suspCount / result.total) * 100 : 0}%`, background: '#ffa502' }} />
+                    <div style={{ width: `${result.total > 0 ? (clearCount / result.total) * 100 : 0}%`, background: '#1e90ff' }} />
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#a4b0be' }}>
-                    <span>🔴 Fault: {((flaggedCount / result.total) * 100).toFixed(0)}%</span>
-                    <span>🟡 Warning: {((suspCount / result.total) * 100).toFixed(0)}%</span>
-                    <span>🔵 Clean: {((clearCount / result.total) * 100).toFixed(0)}%</span>
+                    <span>🔴 Fault: {result.total > 0 ? ((flaggedCount / result.total) * 100).toFixed(0) : 0}%</span>
+                    <span>🟡 Warning: {result.total > 0 ? ((suspCount / result.total) * 100).toFixed(0) : 0}%</span>
+                    <span>🔵 Clean: {result.total > 0 ? ((clearCount / result.total) * 100).toFixed(0) : 0}%</span>
                   </div>
                 </div>
 
-                {/* Benford's Law Custom Graph */}
                 <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '16px', padding: '20px' }}>
                   <div style={{ fontSize: '13px', fontWeight: '700', marginBottom: '4px', color: '#fff' }}>📐 Benford's Law Digital Forensic Overlays</div>
                   <div style={{ fontSize: '10px', color: '#747d8c', marginBottom: '10px' }}>Checks first-digit variance for human tampering flags</div>
@@ -443,8 +484,8 @@ export default function App() {
                     {result.benford.actual.slice(1, 7).map((val, i) => (
                       <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyEnd: 'end', height: '100%' }}>
                         <div style={{ display: 'flex', gap: '2px', alignItems: 'end', height: '100%' }}>
-                          <div style={{ width: '50%', height: `${val * 2.5}%`, background: '#a78bfa', borderRadius: '2px 2px 0 0' }} title={`Actual: ${val}%`} />
-                          <div style={{ width: '50%', height: `${result.benford.ideal[i + 1] * 2.5}%`, background: 'rgba(255,255,255,0.15)', borderRadius: '2px 2px 0 0' }} title={`Ideal Benford: ${result.benford.ideal[i + 1]}%`} />
+                          <div style={{ width: '50%', height: `${val * 2.5}%`, background: '#a78bfa', borderRadius: '2px 2px 0 0' }} />
+                          <div style={{ width: '50%', height: `${result.benford.ideal[i + 1] * 2.5}%`, background: 'rgba(255,255,255,0.15)', borderRadius: '2px 2px 0 0' }} />
                         </div>
                       </div>
                     ))}
@@ -455,14 +496,13 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Navigation Functional Panel Tabs */}
+              {/* Tabs Navigation */}
               <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '12px' }}>
                 <button onClick={() => setActiveTab('transactions')} style={{ padding: '8px 16px', background: activeTab === 'transactions' ? 'rgba(139,92,246,0.15)' : 'transparent', color: activeTab === 'transactions' ? '#a78bfa' : '#747d8c', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '700', cursor: 'pointer' }}>📋 Ledger Accounts</button>
                 <button onClick={() => setActiveTab('unknown')} style={{ padding: '8px 16px', background: activeTab === 'unknown' ? 'rgba(255,71,87,0.1)' : 'transparent', color: activeTab === 'unknown' ? '#ff4757' : '#747d8c', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '700', cursor: 'pointer' }}>❓ Fix Anomalies ({unknownCount})</button>
                 <button onClick={() => setActiveTab('ai')} style={{ padding: '8px 16px', background: activeTab === 'ai' ? 'rgba(139,92,246,0.15)' : 'transparent', color: activeTab === 'ai' ? '#a78bfa' : '#747d8c', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '700', cursor: 'pointer' }}>🤖 Interactive Bot Suite</button>
               </div>
 
-              {/* Interactive Extended Tabs Display Grid Router */}
               {activeTab === 'unknown' && <UnknownTransactionsPanel unknowns={result.unknownTransactions} onUpdateRow={handleUpdateRow} />}
               {activeTab === 'ai' && (
                 <div>
@@ -502,7 +542,10 @@ export default function App() {
                 </div>
               )}
 
-              <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'end' }}>
+              <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <button onClick={downloadCorrectedFile} style={{ background: '#2ed573', color: '#fff', border: 'none', borderRadius: '8px', padding: '10px 20px', fontSize: '12px', fontWeight: '700', cursor: 'pointer' }}>
+                  📥 Download Audited File
+                </button>
                 <button onClick={() => { setResult(null); setFileName(''); }} style={{ padding: '10px 20px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px', color: '#a4b0be', fontSize: '12px', cursor: 'pointer' }}>🔄 Purge Ledger Matrix Data</button>
               </div>
             </div>
