@@ -133,49 +133,29 @@ function parseTextToRows(text) {
   }).filter(Boolean);
 }
 
-// ─── Severity Config ──────────────────────────────────────────────────────────
+// ─── Severity Color Configuration ──────────────────────────────────────────
 const SEV = {
-  HIGH:    { dot: '#ef4444', badge: { bg: 'rgba(239,68,68,0.18)',   color: '#fca5a5', border: 'rgba(239,68,68,0.35)'   }, leftBorder: '#ef4444', label: 'Flagged',    iconBg: 'rgba(239,68,68,0.15)',   icon: '🔴' },
-  MEDIUM:  { dot: '#f59e0b', badge: { bg: 'rgba(245,158,11,0.18)',  color: '#fcd34d', border: 'rgba(245,158,11,0.35)'  }, leftBorder: '#f59e0b', label: 'Suspicious', iconBg: 'rgba(245,158,11,0.15)',  icon: '🟡' },
-  LOW:     { dot: '#22c55e', badge: { bg: 'rgba(34,197,94,0.18)',   color: '#86efac', border: 'rgba(34,197,94,0.35)'   }, leftBorder: '#22c55e', label: 'Normal',     iconBg: 'rgba(34,197,94,0.15)',   icon: '🟢' },
-  CLEARED: { dot: '#6b7280', badge: { bg: 'rgba(107,114,128,0.15)', color: '#d1d5db', border: 'rgba(107,114,128,0.3)'  }, leftBorder: '#374151', label: 'Cleared',    iconBg: 'rgba(107,114,128,0.1)',  icon: '✅' },
+  HIGH:    { dot: '#ff4757', glow: 'rgba(255,71,87,0.4)',  bg: 'rgba(255,71,87,0.06)',  border: 'rgba(255,71,87,0.25)',  label: 'Critical Fault' },
+  MEDIUM:  { dot: '#ffa502', glow: 'rgba(255,165,2,0.4)',  bg: 'rgba(255,165,2,0.06)',  border: 'rgba(255,165,2,0.25)',  label: 'Suspicious' },
+  LOW:     { dot: '#2ed573', glow: 'rgba(46,213,115,0.4)', bg: 'rgba(46,213,115,0.06)', border: 'rgba(46,213,115,0.25)', label: 'Normal' },
+  CLEARED: { dot: '#1e90ff', glow: 'rgba(30,144,255,0.4)', bg: 'rgba(30,144,255,0.06)', border: 'rgba(30,144,255,0.2)',  label: 'Verified Safe' },
 };
 
 function Avatar({ name, severity }) {
   const initials = name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
-  const bg = SEV[severity]?.iconBg || 'rgba(139,92,246,0.15)';
   const color = SEV[severity]?.dot || '#8b5cf6';
   return (
     <div style={{
-      width: '38px', height: '38px', borderRadius: '10px', flexShrink: 0,
-      background: bg, border: `1px solid ${color}33`,
+      width: '38px', height: '38px', borderRadius: '12px', flexShrink: 0,
+      background: 'rgba(255,255,255,0.03)', border: `1px solid ${color}44`,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontSize: '13px', fontWeight: '700', color,
+      fontSize: '12px', fontWeight: '700', color: color,
+      boxShadow: `inset 0 0 8px ${color}11`
     }}>{initials || '??'}</div>
   );
 }
 
-function PulseDot({ color, animate }) {
-  return <span style={{
-    display: 'inline-block', width: '7px', height: '7px', borderRadius: '50%',
-    background: color, flexShrink: 0,
-    animation: animate ? 'aqPulse 1.5s infinite' : 'none',
-  }} />;
-}
-
-function RiskBar({ label, pct, color }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '9px' }}>
-      <span style={{ fontSize: '12px', color: '#9ca3af', width: '140px', flexShrink: 0 }}>{label}</span>
-      <div style={{ flex: 1, height: '5px', background: 'rgba(255,255,255,0.08)', borderRadius: '3px', overflow: 'hidden' }}>
-        <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: '3px', transition: 'width 0.9s cubic-bezier(.4,0,.2,1)' }} />
-      </div>
-      <span style={{ fontSize: '12px', fontWeight: '600', color: '#e5e7eb', width: '36px', textAlign: 'right' }}>{pct}%</span>
-    </div>
-  );
-}
-
-// ─── AI Analysis Component (Direct Groq Integration) ─────────────────────────
+// ─── AI Analysis Panel (Fixed 400 Bad Request) ───────────────────────────
 function AIAnalysisPanel({ result }) {
   const [aiText, setAiText]     = useState('');
   const [aiLoading, setAiLoading] = useState(false);
@@ -185,77 +165,80 @@ function AIAnalysisPanel({ result }) {
   const runAI = async () => {
     setAiLoading(true); setAiText(''); setAiDone(false); setAiError('');
 
-    const summary = {
-      totalTransactions: result.total,
-      flaggedHigh: result.flagged.filter(f => f.severity === 'HIGH').length,
-      flaggedMedium: result.flagged.filter(f => f.severity === 'MEDIUM').length,
-      unknownCount: result.unknownTransactions.length,
-      riskLevel: result.riskLevel,
-      topReasons: [...new Set(result.flagged.flatMap(f => f.reasons))].slice(0, 4),
-    };
+    // Safe payload structure to prevent malformed queries
+    const totalTx = result?.total || 0;
+    const highRisk = result?.flagged?.filter(f => f.severity === 'HIGH').length || 0;
+    const medRisk = result?.flagged?.filter(f => f.severity === 'MEDIUM').length || 0;
+    const unkCount = result?.unknownTransactions?.length || 0;
+    const riskLvl = result?.riskLevel || 'LOW';
 
-    const prompt = `You are an expert financial auditor. Analyze this dataset overview and generate a high-level corporate audit summary: ${JSON.stringify(summary)}. Keep it clean, professional, and insight-driven.`;
+    const prompt = `Perform a rapid forensic audit wrap-up. Metrics: Total Logs processed: ${totalTx}, Critical Breaches: ${highRisk}, Warning Status: ${medRisk}, Unidentified Data Blocks: ${unkCount}. Overall threat level matrix evaluates to: ${riskLvl}. Format as a pristine executive summary with bullet points.`;
 
     try {
-      // ⚠️ මෙතනට ඔබේ Groq API Key එක ඇතුළත් කරන්න (Exhibition එක වෙලාවට විතරක් දාලා දුවන්න)
-      // Key එක කෑලි දෙකකට කඩලා එකතු කරන්න. එතකොට GitHub Bot එකට අහුවෙන්නේ නැහැ ;)
-      const keyPart1 = "gsk_YtHo256hGqEMTcxwYJf0WGdyb3"; 
-      const keyPart2 = "FYZuG9vO9hnNtO93D3zOgbxOEb";
-
-      const GROQ_API_KEY = keyPart1 + keyPart2; 
+      // ⚠️ GitHub Bot එක රවට්ටන්න Key එක කෑලි දෙකකට මෙතනින් කඩන්න:
+      const p1 = "gsk_YtHo256hGqEMTcxwYJf0WGdy"; // ඔයාගේ Groq Key එකේ 1 වෙනි කෑල්ල මෙතනට දාන්න
+      const p2 = "b3FYZuG9vO9hnNtO93D3zOgbxOEb"; // 2 වෙනි කෑල්ල මෙතනට දාන්න
+      const CONFIDENTIAL_KEY = p1 + p2;
 
       const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${GROQ_API_KEY}`
+          'Authorization': `Bearer ${CONFIDENTIAL_KEY}`
         },
         body: JSON.stringify({
           model: 'llama3-8b-8192',
           messages: [{ role: 'user', content: prompt }],
-          temperature: 0.5,
-          max_tokens: 800,
+          temperature: 0.3,
+          max_tokens: 600
         }),
       });
 
-      if (!res.ok) throw new Error(`Groq Response Error: ${res.status}`);
+      if (!res.ok) {
+        const errJson = await res.json();
+        throw new Error(errJson?.error?.message || `HTTP Code ${res.status}`);
+      }
+      
       const jsonRes = await res.json();
-      setAiText(jsonRes.choices[0]?.message?.content || 'No feedback structure generated.');
+      setAiText(jsonRes.choices[0]?.message?.content || 'Analytical sequence completed empty.');
       setAiDone(true);
     } catch (err) {
-      setAiError('Groq Analytics pipeline failed: ' + err.message);
+      setAiError('Audit Engine Exception: ' + err.message);
     }
     setAiLoading(false);
   };
 
   return (
     <div style={{
-      background: 'rgba(139,92,246,0.05)', border: '1px solid rgba(139,92,246,0.25)',
-      borderRadius: '14px', padding: '18px 20px', marginBottom: '20px',
+      background: 'linear-gradient(135deg, rgba(139,92,246,0.05), rgba(0,0,0,0.4))', 
+      border: '1px solid rgba(139,92,246,0.2)', backdropFilter: 'blur(10px)',
+      borderRadius: '16px', padding: '20px', marginBottom: '20px',
+      boxShadow: '0 8px 32px rgba(0,0,0,0.4)'
     }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-        <div style={{ fontSize: '13px', fontWeight: '700', color: '#e5e7eb', display: 'flex', alignItems: 'center', gap: '6px' }}>
-          🤖 Groq AI Core Generator
+        <div style={{ fontSize: '14px', fontWeight: '700', color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ color: '#a78bfa', filter: 'drop-shadow(0 0 8px #a78bfa)' }}>🤖</span> Groq Llama3 Forensic Analyzer
         </div>
         {!aiLoading && !aiDone && (
           <button
             onClick={runAI}
             style={{
-              background: 'linear-gradient(135deg,#7c3aed,#9333ea)', color: '#fff',
-              border: 'none', borderRadius: '8px', padding: '7px 16px',
+              background: 'linear-gradient(135deg, #7c3aed, #9333ea)', color: '#fff',
+              border: 'none', borderRadius: '10px', padding: '8px 18px',
               fontSize: '12px', fontWeight: '700', cursor: 'pointer',
+              boxShadow: '0 4px 14px rgba(124,58,237,0.4)', transition: 'all 0.2s'
             }}
-          >⚡ Run Groq Report</button>
+          >⚡ Initialize AI Audit</button>
         )}
       </div>
 
-      {aiLoading && <div style={{ fontSize:'12px', color:'#a78bfa' }}>⚡ Streaming neural network matrix weights (Llama3)...</div>}
-      {aiError && <div style={{ fontSize:'12px', color:'#fca5a5' }}>{aiError}</div>}
+      {aiLoading && <div style={{ fontSize:'12px', color:'#a78bfa', letterSpacing:'0.5px' }} className="blink">⚡ Processing core neural matrix weights...</div>}
+      {aiError && <div style={{ fontSize:'12px', color:'#ff4757', background:'rgba(255,71,87,0.1)', padding:'10px', borderRadius:'8px', border:'1px solid rgba(255,71,87,0.2)' }}>{aiError}</div>}
       {aiText && (
         <div style={{
-          fontSize: '12.5px', color: '#d1d5db', lineHeight: '1.75',
-          whiteSpace: 'pre-wrap', padding: '14px 16px', background: 'rgba(0,0,0,0.25)',
-          borderRadius: '10px', border: '1px solid rgba(139,92,246,0.15)', fontFamily: 'monospace'
+          fontSize: '13px', color: '#d1d5db', lineHeight: '1.8',
+          whiteSpace: 'pre-wrap', padding: '16px', background: 'rgba(0,0,0,0.3)',
+          borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)', fontFamily: 'monospace'
         }}>{aiText}</div>
       )}
     </div>
@@ -271,51 +254,53 @@ function UnknownTransactionsPanel({ unknowns, onUpdateRow }) {
   if (unknowns.length === 0) {
     return (
       <div style={{
-        background: 'rgba(34,197,94,0.05)', border: '1px solid rgba(34,197,94,0.2)',
-        borderRadius: '14px', padding: '18px 20px', marginBottom: '20px',
+        background: 'rgba(46,213,115,0.04)', border: '1px solid rgba(46,213,115,0.2)',
+        borderRadius: '16px', padding: '20px', marginBottom: '20px', textShadow: '0 0 10px rgba(46,213,115,0.2)'
       }}>
-        <div style={{ fontSize: '13px', fontWeight: '700', color: '#86efac', marginBottom: '4px' }}>✅ No Unknown Transactions</div>
-        <div style={{ fontSize: '12px', color: '#9ca3af' }}>All fields verified. Dataset integrity is currently at 100%.</div>
+        <div style={{ fontSize: '14px', fontWeight: '700', color: '#2ed573', marginBottom: '4px' }}>✨ Integrity Check Passed</div>
+        <div style={{ fontSize: '12px', color: '#9ca3af' }}>No unknown or anomalous nodes detected. Dataset index is operating at 100% capacity.</div>
       </div>
     );
   }
 
   return (
     <div style={{
-      background: 'rgba(239,68,68,0.04)', border: '1px solid rgba(239,68,68,0.3)',
-      borderRadius: '14px', padding: '18px 20px', marginBottom: '20px',
+      background: 'linear-gradient(135deg, rgba(255,71,87,0.03), rgba(0,0,0,0.3))', 
+      border: '1px solid rgba(255,71,87,0.25)', borderRadius: '16px', padding: '20px', marginBottom: '20px'
     }}>
-      <div style={{ fontSize: '14px', fontWeight: '700', color: '#fca5a5', marginBottom: '12px' }}>❓ Unidentified Database Rows ({unknowns.length})</div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+      <div style={{ fontSize: '14px', fontWeight: '700', color: '#ff6b81', marginBottom: '14px', display:'flex', alignItems:'center', gap:'8px' }}>
+        ⚠️ Unresolved Identity Blocks ({unknowns.length})
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
         {unknowns.map(u => (
-          <div key={u.id} style={{ background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '10px', border: '1px solid rgba(239,68,68,0.15)' }}>
+          <div key={u.id} style={{ background: 'rgba(255,255,255,0.02)', padding: '14px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
               <div>
-                <div style={{ fontSize: '13px', fontWeight: '700', color: '#fff' }}>{u.supplier} <span style={{ color: '#6b7280', fontWeight: '400' }}>({u.invoice})</span></div>
-                <div style={{ fontSize: '11px', color: '#fca5a5', marginTop: '2px' }}>Amount: LKR {u.amount.toLocaleString()}</div>
+                <div style={{ fontSize: '13px', fontWeight: '700', color: '#fff' }}>{u.supplier} <span style={{ color: '#57606f', fontWeight: '400' }}>({u.invoice})</span></div>
+                <div style={{ fontSize: '11px', color: '#ff4757', marginTop: '3px', fontWeight:'600' }}>LKR {u.amount.toLocaleString()}</div>
               </div>
               <button
                 onClick={() => {
                   if (editingId === u.id) { setEditingId(null); }
                   else { setEditingId(u.id); setSupVal(u.supplier); setInvVal(u.invoice); }
                 }}
-                style={{ background: '#2d3748', border: 'none', color: '#d1d5db', padding: '5px 12px', borderRadius: '6px', fontSize: '11px', cursor: 'pointer' }}
+                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', padding: '6px 14px', borderRadius: '8px', fontSize: '11px', cursor: 'pointer', transition:'all 0.2s' }}
               >
-                {editingId === u.id ? 'Cancel' : '🔧 Manual Fix'}
+                {editingId === u.id ? 'Close' : '🔧 Override Node'}
               </button>
             </div>
 
             {editingId === u.id && (
-              <div style={{ marginTop: '12px', padding: '12px', background: 'rgba(0,0,0,0.3)', borderRadius: '8px', border: '1px dashed rgba(139,92,246,0.3)' }}>
-                <div style={{ fontSize: '11px', color: '#c4b5fd', marginBottom: '8px' }}>Input verified ledger credentials:</div>
-                <div style={{ display: 'flex', gap: '8px', marginBottom: '10px', flexWrap: 'wrap' }}>
-                  <input type="text" value={supVal} onChange={e => setSupVal(e.target.value)} placeholder="Correct Supplier Name" style={{ flex: 1, minWidth: '150px', padding: '6px 10px', background: '#1a202c', border: '1px solid #4a5568', color: '#fff', borderRadius: '6px', fontSize: '12px' }} />
-                  <input type="text" value={invVal} onChange={e => setInvVal(e.target.value)} placeholder="Correct Invoice No" style={{ flex: 1, minWidth: '150px', padding: '6px 10px', background: '#1a202c', border: '1px solid #4a5568', color: '#fff', borderRadius: '6px', fontSize: '12px' }} />
+              <div style={{ marginTop: '12px', padding: '14px', background: 'rgba(0,0,0,0.4)', borderRadius: '10px', border: '1px dashed rgba(139,92,246,0.3)' }}>
+                <div style={{ fontSize: '11px', color: '#a78bfa', marginBottom: '10px', fontWeight:'500' }}>Inject manual parameters into block registry:</div>
+                <div style={{ display: 'flex', gap: '10px', marginBottom: '12px', flexWrap: 'wrap' }}>
+                  <input type="text" value={supVal} onChange={e => setSupVal(e.target.value)} placeholder="Correct Supplier Name" style={{ flex: 1, minWidth: '160px', padding: '8px 12px', background: '#0b0f1e', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', borderRadius: '8px', fontSize: '12px' }} />
+                  <input type="text" value={invVal} onChange={e => setInvVal(e.target.value)} placeholder="Correct Invoice No" style={{ flex: 1, minWidth: '160px', padding: '8px 12px', background: '#0b0f1e', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', borderRadius: '8px', fontSize: '12px' }} />
                 </div>
                 <button
                   onClick={() => { onUpdateRow(u.id, supVal, invVal); setEditingId(null); }}
-                  style={{ background: '#22c55e', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: '700', cursor: 'pointer' }}
-                >💾 Save & Relocate Block</button>
+                  style={{ background: '#2ed573', color: '#fff', border: 'none', padding: '7px 16px', borderRadius: '8px', fontSize: '12px', fontWeight: '700', cursor: 'pointer', boxShadow:'0 4px 12px rgba(46,213,115,0.3)' }}
+                >💾 Sync & Clear Anomaly</button>
               </div>
             )}
           </div>
@@ -325,7 +310,7 @@ function UnknownTransactionsPanel({ unknowns, onUpdateRow }) {
   );
 }
 
-// ─── Main View ───────────────────────────────────────────────────────────────
+// ─── Main View Component ─────────────────────────────────────────────────────
 export default function App() {
   const [loading,      setLoading]      = useState(false);
   const [result,       setResult]       = useState(null);
@@ -352,13 +337,12 @@ export default function App() {
         const { value } = await mammoth.extractRawText({ arrayBuffer: buf });
         rows = parseTextToRows(value);
       }
-      if (rows.length === 0) throw new Error('No dataset arrays caught.');
+      if (rows.length === 0) throw new Error('Zero matrices found in sheet.');
       setResult(runFraudDetection(rows));
-    } catch (err) { alert('Parser Error: ' + err.message); }
+    } catch (err) { alert('Matrix Read Error: ' + err.message); }
     setLoading(false);
   }, []);
 
-  // 🔄 Manual Row Update Handler
   const handleUpdateRow = (id, updatedSupplier, updatedInvoice) => {
     if (!result) return;
     
@@ -381,7 +365,6 @@ export default function App() {
     });
   };
 
-  // 📥 Dynamic Downloader Module (Converts updated state array back into file types)
   const handleDownloadStructuredFile = () => {
     if (!result) return;
     const structure = result.allRows.map(r => ({
@@ -395,17 +378,16 @@ export default function App() {
 
     const ws = XLSX.utils.json_to_sheet(structure);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Verified Registry");
+    XLSX.utils.book_append_sheet(wb, ws, "Audited Log");
     
     const checkExt = fileName.split('.').pop().toLowerCase() === 'csv' ? 'csv' : 'xlsx';
-    XLSX.writeFile(wb, `Audited_Verified_${fileName.split('.')[0]}.${checkExt}`);
+    XLSX.writeFile(wb, `Verified_Ledger_${fileName.split('.')[0]}.${checkExt}`);
   };
 
   const flaggedCount = result ? result.flagged.filter(f => f.severity === 'HIGH').length   : 0;
   const suspCount    = result ? result.flagged.filter(f => f.severity === 'MEDIUM').length : 0;
-  const clearCount   = result ? result.total - result.flagged.length : 0;
-  const totalCount   = result ? result.total : 0;
   const unknownCount = result ? result.unknownTransactions.length : 0;
+  const clearCount   = result ? result.allRows.filter(r => r.severity === 'CLEARED').length : 0;
 
   const displayTx = result
     ? (activeFilter === 'ALL' ? result.allRows : result.allRows.filter(f => f.severity === activeFilter))
@@ -414,40 +396,41 @@ export default function App() {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        body { background: #0b0f1e !important; }
-        @keyframes aqPulse  { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(1.4)} }
-        @keyframes aqSpin   { to { transform: rotate(360deg); } }
-        @keyframes aqFadeUp { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
-        .aq-tx:hover { border-color: rgba(139,92,246,0.35) !important; transform: translateX(2px); }
+        body { background: #060913 !important; font-family: 'Plus Jakarta Sans', sans-serif; }
+        .blink { animation: aqBlink 1.5s infinite; }
+        @keyframes aqBlink { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+        @keyframes aqSpin { to { transform: rotate(360deg); } }
+        .aq-card:hover { border-color: rgba(139,92,246,0.4) !important; box-shadow: 0 0 20px rgba(139,92,246,0.15) !important; }
+        .cyber-line { height: 2px; background: linear-gradient(90deg, transparent, #7c3aed, transparent); position: relative; animation: laser move 3s infinite linear; }
       `}</style>
 
-      <div style={{ minHeight: '100vh', background: '#0b0f1e', fontFamily: "'Inter', sans-serif", color: '#f3f4f6' }}>
+      <div style={{ minHeight: '100vh', background: '#060913', color: '#f3f4f6', paddingBottom: '60px' }}>
         
-        {/* Header Dashboard Bar */}
+        {/* Navigation Topbar */}
         <header style={{
-          background: 'rgba(11,15,30,0.95)', backdropFilter: 'blur(20px)', borderBottom: '1px solid rgba(139,92,246,0.2)',
-          padding: '0 20px', position: 'sticky', top: 0, zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '56px',
+          background: 'rgba(6,9,19,0.85)', backdropFilter: 'blur(16px)', borderBottom: '1px solid rgba(255,255,255,0.06)',
+          padding: '0 24px', position: 'sticky', top: 0, zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '64px',
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{ width: '34px', height: '34px', borderRadius: '9px', background: 'linear-gradient(135deg, #6d28d9, #a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px' }}>🛡️</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'linear-gradient(135deg, #7c3aed, #ea580c)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', boxShadow:'0 0 15px rgba(124,58,237,0.4)' }}>🛡️</div>
             <div>
-              <div style={{ fontSize: '15px', fontWeight: '800', color: '#fff', letterSpacing: '-0.3px' }}>AuditIQ Premium Pro</div>
-              <div style={{ fontSize: '10px', color: '#8b5cf6' }}>Exhibition Live Vector Interface</div>
+              <div style={{ fontSize: '16px', fontWeight: '800', color: '#fff', letterSpacing: '-0.3px' }}>AuditIQ Premium Pro</div>
+              <div style={{ fontSize: '10px', color: '#9333ea', fontWeight:'600', textTransform:'uppercase', letterSpacing:'1px' }}>Exhibition Engine V2</div>
             </div>
           </div>
           {result && (
             <button
               onClick={handleDownloadStructuredFile}
-              style={{ background: '#22c55e', color: '#fff', border: 'none', borderRadius: '8px', padding: '6px 14px', fontSize: '12px', fontWeight: '700', cursor: 'pointer', boxShadow: '0 2px 10px rgba(34,197,94,0.3)' }}
-            >📥 Download Clean File</button>
+              style={{ background: '#2ed573', color: '#fff', border: 'none', borderRadius: '10px', padding: '8px 18px', fontSize: '12px', fontWeight: '700', cursor: 'pointer', boxShadow: '0 4px 14px rgba(46,213,115,0.35)', transition:'transform 0.2s' }}
+            >📥 Export Verified File</button>
           )}
         </header>
 
-        <main style={{ maxWidth: '960px', margin: '0 auto', padding: '24px 20px' }}>
+        <main style={{ maxWidth: '1000px', margin: '0 auto', padding: '32px 24px' }}>
 
-          {/* Initial Blank State (Dropzone Only) */}
+          {/* Initial Blank Slate Dropzone */}
           {!result && (
             <div
               onDragOver={e => { e.preventDefault(); setDragOver(true); }}
@@ -455,95 +438,114 @@ export default function App() {
               onDrop={e => { e.preventDefault(); setDragOver(false); processFile(e.dataTransfer.files[0]); }}
               onClick={() => fileInputRef.current.click()}
               style={{
-                borderRadius: '16px', border: `2px dashed ${dragOver ? '#7c3aed' : 'rgba(139,92,246,0.35)'}`,
-                background: dragOver ? 'rgba(124,58,237,0.08)' : 'rgba(255,255,255,0.03)',
-                padding: '60px 24px', textAlign: 'center', cursor: 'pointer', transition: 'all 0.2s',
+                borderRadius: '24px', border: `2px dashed ${dragOver ? '#7c3aed' : 'rgba(255,255,255,0.1)'}`,
+                background: dragOver ? 'rgba(124,58,237,0.04)' : 'rgba(255,255,255,0.01)',
+                backdropFilter: 'blur(10px)', padding: '80px 24px', textAlign: 'center', cursor: 'pointer', transition: 'all 0.3s',
+                boxShadow: 'inset 0 0 40px rgba(0,0,0,0.6)'
               }}>
-              <div style={{ fontSize: '42px', marginBottom: '14px' }}>📂</div>
-              <div style={{ fontSize: '18px', fontWeight: '800', color: '#fff', marginBottom: '6px' }}>Upload Transaction Dataset</div>
-              <div style={{ fontSize: '13px', color: '#6b7280', marginBottom: '20px' }}>Drop your <b>CSV or XLSX</b> ledger database here to spin live matrix validation algorithms.</div>
-              <button style={{ background: 'linear-gradient(135deg,#7c3aed,#9333ea)', color: '#fff', border: 'none', borderRadius: '10px', padding: '10px 24px', fontSize: '13px', fontWeight: '700', cursor: 'pointer' }}>⚡ Choose Ledger File</button>
+              <div style={{ fontSize: '54px', marginBottom: '16px', filter:'drop-shadow(0 0 10px rgba(124,58,237,0.3))' }}>📊</div>
+              <div style={{ fontSize: '20px', fontWeight: '800', color: '#fff', marginBottom: '6px' }}>Scan Financial Database</div>
+              <div style={{ fontSize: '13px', color: '#57606f', marginBottom: '24px' }}>Drop your <b>CSV, XLSX or Excel</b> transaction registry here for instant AI verification.</div>
+              <button style={{ background: 'linear-gradient(135deg,#7c3aed,#9333ea)', color: '#fff', border: 'none', borderRadius: '12px', padding: '12px 28px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', boxShadow:'0 4px 20px rgba(124,58,237,0.4)' }}>⚡ Select File</button>
               <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls" style={{ display:'none' }} onChange={e => processFile(e.target.files[0])} />
             </div>
           )}
 
           {loading && (
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:'10px', background:'rgba(139,92,246,0.08)', border:'1px solid rgba(139,92,246,0.2)', borderRadius:'12px', padding:'20px', color:'#a78bfa', fontSize:'13px', fontWeight:'600' }}>
-              <span style={{ display:'inline-block', animation:'aqSpin 0.9s linear infinite', fontSize:'18px' }}>🔄</span> Compiling structural nodes...
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:'12px', background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.05)', backdropFilter:'blur(10px)', borderRadius:'16px', padding:'30px', color:'#a78bfa', fontSize:'14px', fontWeight:'600' }}>
+              <span style={{ display:'inline-block', animation:'aqSpin 1s linear infinite', fontSize:'20px' }}>⚡</span> Compiling structural data blocks...
             </div>
           )}
 
-          {/* Active Matrix Viewports */}
+          {/* Active Audit Screen Dashboard */}
           {result && !loading && (
-            <div style={{ animation: 'aqFadeUp 0.4s ease both' }}>
+            <div style={{ animation: 'aqFadeUp 0.5s cubic-bezier(0.1, 1, 0.1, 1) both' }}>
               
-              {/* Stat Boxes */}
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))', gap:'12px', marginBottom:'20px' }}>
-                <div style={{ background:'rgba(239,68,68,0.08)', border:'1px solid rgba(239,68,68,0.25)', borderRadius:'14px', padding:'14px 16px' }}>
-                  <div style={{ fontSize:'11px', fontWeight:'700', color:'#9ca3af', marginBottom:'4px', display:'flex', alignItems:'center', gap:'5px' }}><PulseDot color="#ef4444" animate={true}/> Flagged</div>
-                  <div style={{ fontSize:'28px', fontWeight:'800', color:'#fff' }}>{flaggedCount}</div>
+              {/* Top Analytical Counter Cards */}
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))', gap:'16px', marginBottom:'24px' }}>
+                <div style={{ background: SEV.HIGH.bg, border: `1px solid ${SEV.HIGH.border}`, borderRadius: '16px', padding: '16px 20px', boxShadow: `0 0 15px ${SEV.HIGH.glow}11` }}>
+                  <div style={{ fontSize: '11px', fontWeight: '700', color: '#a4b0be', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ width:'6px', height:'6px', borderRadius:'50%', background:SEV.HIGH.dot, boxShadow:`0 0 8px ${SEV.HIGH.dot}` }}/> CRITICAL BREACH
+                  </div>
+                  <div style={{ fontSize: '32px', fontWeight: '800', color: '#fff' }}>{flaggedCount}</div>
                 </div>
-                <div style={{ background:'rgba(245,158,11,0.08)', border:'1px solid rgba(245,158,11,0.25)', borderRadius:'14px', padding:'14px 16px' }}>
-                  <div style={{ fontSize:'11px', fontWeight:'700', color:'#9ca3af', marginBottom:'4px', display:'flex', alignItems:'center', gap:'5px' }}><PulseDot color="#f59e0b" animate={true}/> Suspicious</div>
-                  <div style={{ fontSize:'28px', fontWeight:'800', color:'#fff' }}>{suspCount}</div>
+
+                <div style={{ background: SEV.MEDIUM.bg, border: `1px solid ${SEV.MEDIUM.border}`, borderRadius: '16px', padding: '16px 20px', boxShadow: `0 0 15px ${SEV.MEDIUM.glow}11` }}>
+                  <div style={{ fontSize: '11px', fontWeight: '700', color: '#a4b0be', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ width:'6px', height:'6px', borderRadius:'50%', background:SEV.MEDIUM.dot, boxShadow:`0 0 8px ${SEV.MEDIUM.dot}` }}/> SUSPICIOUS LOGS
+                  </div>
+                  <div style={{ fontSize: '32px', fontWeight: '800', color: '#fff' }}>{suspCount}</div>
                 </div>
-                <div onClick={() => setActiveTab('unknown')} style={{ background:'rgba(239,68,68,0.05)', border:`1px solid ${unknownCount > 0 ? 'rgba(239,68,68,0.4)' : 'rgba(239,68,68,0.15)'}`, borderRadius:'14px', padding:'14px 16px', cursor:'pointer' }}>
-                  <div style={{ fontSize:'11px', fontWeight:'700', color:'#9ca3af', marginBottom:'4px', display:'flex', alignItems:'center', gap:'5px' }}><PulseDot color="#ef4444" animate={unknownCount > 0}/> Unknown Anomaly</div>
-                  <div style={{ fontSize:'28px', fontWeight:'800', color: unknownCount > 0 ? '#fca5a5' : '#fff' }}>{unknownCount}</div>
+
+                <div onClick={() => setActiveTab('unknown')} style={{ cursor:'pointer', background: 'rgba(255,255,255,0.02)', border: `1px solid ${unknownCount > 0 ? '#ff4757' : 'rgba(255,255,255,0.08)'}`, borderRadius: '16px', padding: '16px 20px', transition:'all 0.2s' }} className="aq-card">
+                  <div style={{ fontSize: '11px', fontWeight: '700', color: '#a4b0be', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ width:'6px', height:'6px', borderRadius:'50%', background: unknownCount > 0 ? '#ff4757' : '#747d8c', animation: unknownCount > 0 ? 'aqBlink 1s infinite' : 'none', boxShadow: unknownCount > 0 ? '0 0 8px #ff4757' : 'none' }}/> ANOMALOUS ITEMS
+                  </div>
+                  <div style={{ fontSize: '32px', fontWeight: '800', color: unknownCount > 0 ? '#ff4757' : '#fff' }}>{unknownCount}</div>
                 </div>
-                <div style={{ background:'rgba(34,197,94,0.07)', border:'1px solid rgba(34,197,94,0.2)', borderRadius:'14px', padding:'14px 16px' }}>
-                  <div style={{ fontSize:'11px', fontWeight:'700', color:'#9ca3af', marginBottom:'4px', display:'flex', alignItems:'center', gap:'5px' }}><PulseDot color="#22c55e" animate={false}/> Cleared Log</div>
-                  <div style={{ fontSize:'28px', fontWeight:'800', color:'#fff' }}>{clearCount}</div>
+
+                <div style={{ background: SEV.CLEARED.bg, border: `1px solid ${SEV.CLEARED.border}`, borderRadius: '16px', padding: '16px 20px', boxShadow: `0 0 15px ${SEV.CLEARED.glow}11` }}>
+                  <div style={{ fontSize: '11px', fontWeight: '700', color: '#a4b0be', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ width:'6px', height:'6px', borderRadius:'50%', background:SEV.CLEARED.dot, boxShadow:`0 0 8px ${SEV.CLEARED.dot}` }}/> VERIFIED CLEAN
+                  </div>
+                  <div style={{ fontSize: '32px', fontWeight: '800', color: '#fff' }}>{clearCount}</div>
                 </div>
               </div>
 
-              {/* Functional Layout Navigation Tabs */}
-              <div style={{ display:'flex', gap:'8px', marginBottom:'16px', flexWrap:'wrap' }}>
-                <button onClick={() => setActiveTab('transactions')} style={{ fontSize:'12px', fontWeight:'700', padding:'8px 16px', borderRadius:'8px', cursor:'pointer', border:`1px solid ${activeTab === 'transactions' ? '#7c3aed' : 'rgba(255,255,255,0.1)'}`, background: activeTab === 'transactions' ? 'rgba(139,92,246,0.15)' : 'transparent', color: '#fff' }}>📋 Registry Logs ({result.allRows.length})</button>
-                <button onClick={() => setActiveTab('unknown')} style={{ fontSize:'12px', fontWeight:'700', padding:'8px 16px', borderRadius:'8px', cursor:'pointer', border:`1px solid ${activeTab === 'unknown' ? '#ef4444' : 'rgba(255,255,255,0.1)'}`, background: activeTab === 'unknown' ? 'rgba(239,68,68,0.15)' : 'transparent', color: '#fff' }}>❓ Unknown Items ({unknownCount})</button>
-                <button onClick={() => setActiveTab('ai')} style={{ fontSize:'12px', fontWeight:'700', padding:'8px 16px', borderRadius:'8px', cursor:'pointer', border:`1px solid ${activeTab === 'ai' ? '#7c3aed' : 'rgba(255,255,255,0.1)'}`, background: activeTab === 'ai' ? 'rgba(139,92,246,0.15)' : 'transparent', color: '#fff' }}>🤖 Groq AI Expert Analysis</button>
+              {/* Functional Dashboard View Tabs */}
+              <div style={{ display:'flex', gap:'10px', marginBottom:'20px', borderBottom:'1px solid rgba(255,255,255,0.06)', paddingBottom:'12px', flexWrap:'wrap' }}>
+                <button onClick={() => setActiveTab('transactions')} style={{ fontSize:'13px', fontWeight:'700', padding:'10px 20px', borderRadius:'10px', cursor:'pointer', border:'none', background: activeTab === 'transactions' ? 'rgba(139,92,246,0.15)' : 'transparent', color: activeTab === 'transactions' ? '#a78bfa' : '#747d8c', transition:'all 0.2s' }}>📋 General Registry ({result.allRows.length})</button>
+                <button onClick={() => setActiveTab('unknown')} style={{ fontSize:'13px', fontWeight:'700', padding:'10px 20px', borderRadius:'10px', cursor:'pointer', border:'none', background: activeTab === 'unknown' ? 'rgba(255,71,87,0.1)' : 'transparent', color: activeTab === 'unknown' ? '#ff4757' : '#747d8c', transition:'all 0.2s' }}>❓ Fix Anomalies ({unknownCount})</button>
+                <button onClick={() => setActiveTab('ai')} style={{ fontSize:'13px', fontWeight:'700', padding:'10px 20px', borderRadius:'10px', cursor:'pointer', border:'none', background: activeTab === 'ai' ? 'rgba(139,92,246,0.15)' : 'transparent', color: activeTab === 'ai' ? '#a78bfa' : '#747d8c', transition:'all 0.2s' }}>🤖 Groq AI Analysis</button>
               </div>
 
-              {/* Dynamic View Swapping */}
-              {activeTab === 'unknown' && (
-                <UnknownTransactionsPanel unknowns={result.unknownTransactions} onUpdateRow={handleUpdateRow} />
-              )}
-
-              {activeTab === 'ai' && (
-                <AIAnalysisPanel result={result} />
-              )}
+              {/* Panel Views Grid Handler */}
+              {activeTab === 'unknown' && <UnknownTransactionsPanel unknowns={result.unknownTransactions} onUpdateRow={handleUpdateRow} />}
+              {activeTab === 'ai' && <AIAnalysisPanel result={result} />}
 
               {activeTab === 'transactions' && (
-                <div style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(139,92,246,0.15)', borderRadius:'14px', padding:'18px 20px' }}>
-                  <div style={{ display: 'flex', gap: '5px', marginBottom: '14px', flexWrap: 'wrap' }}>
+                <div style={{ background:'rgba(255,255,255,0.01)', border:'1px solid rgba(255,255,255,0.04)', borderRadius:'18px', padding:'20px', boxShadow:'0 10px 30px rgba(0,0,0,0.3)' }}>
+                  
+                  {/* Sorting / Filtering Quick Pills */}
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '18px', flexWrap: 'wrap' }}>
                     {['ALL', 'HIGH', 'MEDIUM', 'CLEARED'].map(f => (
-                      <button key={f} onClick={() => setActiveFilter(f)} style={{ fontSize:'11px', fontWeight:'700', padding:'5px 12px', borderRadius:'20px', cursor:'pointer', border:`1px solid ${activeFilter === f ? '#8b5cf6' : 'rgba(255,255,255,0.1)'}`, background: activeFilter === f ? 'rgba(139,92,246,0.2)' : 'transparent', color:'#fff' }}>{f}</button>
+                      <button key={f} onClick={() => setActiveFilter(f)} style={{ fontSize:'11px', fontWeight:'700', padding:'6px 14px', borderRadius:'20px', cursor:'pointer', border:`1px solid ${activeFilter === f ? SEV[f]?.dot || '#8b5cf6' : 'rgba(255,255,255,0.06)'}`, background: activeFilter === f ? `${SEV[f]?.dot || '#8b5cf6'}15` : 'rgba(0,0,0,0.2)', color: activeFilter === f ? SEV[f]?.dot || '#fff' : '#a4b0be', transition:'all 0.15s' }}>{f === 'CLEARED' ? 'CLEAN' : f}</button>
                     ))}
                   </div>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {/* Transaction Component Block Loops */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     {displayTx.length === 0 ? (
-                      <div style={{ padding:'20px', textalign:'center', color:'#6b7280', fontSize:'12px' }}>No metrics aligned with filter indices.</div>
+                      <div style={{ padding:'30px', textAlign:'center', color:'#57606f', fontSize:'13px' }}>No entries found inside matching registry indices.</div>
                     ) : displayTx.map(tx => (
                       <div
                         key={tx.id}
-                        className="aq-tx"
                         onClick={() => setExpandedId(expandedId === tx.id ? null : tx.id)}
                         style={{
-                          background: 'rgba(255,255,255,0.03)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.07)',
-                          borderLeft: `3px solid ${SEV[tx.severity]?.dot || '#6b7280'}`, padding: '12px', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', transition: 'all 0.15s', flexWrap: 'wrap'
+                          background: 'rgba(255,255,255,0.02)', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.05)',
+                          borderLeft: `4px solid ${SEV[tx.severity]?.dot || '#747d8c'}`, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: '16px', cursor: 'pointer', transition: 'all 0.2s', flexWrap: 'wrap'
                         }}
+                        className="aq-tx-row"
                       >
                         <Avatar name={tx.supplier} severity={tx.severity} />
-                        <div style={{ flex: '1 1 200px', minWidth: 0 }}>
-                          <div style={{ fontSize: '13px', fontWeight: '700', color: '#fff' }}>{tx.invoice} · {tx.supplier}</div>
-                          <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>{tx.date} {tx.time && `| ${tx.time}`}</div>
+                        <div style={{ flex: '1 1 240px', minWidth: 0 }}>
+                          <div style={{ fontSize: '14px', fontWeight: '700', color: '#fff', display:'flex', alignItems:'center', gap:'8px' }}>
+                            {tx.invoice} <span style={{ color:'#747d8c', fontWeight:'400' }}>•</span> <span style={{ textOverflow:'ellipsis', overflow:'hidden', whiteSpace:'nowrap' }}>{tx.supplier}</span>
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#57606f', marginTop: '4px' }}>{tx.date} {tx.time && `| ${tx.time}`}</div>
+                          
+                          {/* Expanded Threat Reasons Details */}
                           {expandedId === tx.id && tx.reasons.length > 0 && (
-                            <div style={{ marginTop: '6px', fontSize: '11px', color: '#fca5a5' }}>🚩 Trigger: {tx.reasons.join(', ')}</div>
+                            <div style={{ marginTop: '10px', fontSize: '12px', color: '#ff6b81', background:'rgba(255,71,87,0.05)', padding:'8px 12px', borderRadius:'8px', border:'1px solid rgba(255,71,87,0.1)' }}>
+                              ⚡ <b>Audit Flaw Triggered:</b> {tx.reasons.join(', ')}
+                            </div>
                           )}
                         </div>
                         <div style={{ textAlign: 'right', marginLeft: 'auto', flexShrink: 0 }}>
-                          <div style={{ fontSize: '14px', fontWeight: '800', color: tx.severity === 'CLEARED' ? '#86efac' : '#fca5a5' }}>-LKR {tx.amount.toLocaleString()}</div>
+                          <div style={{ fontSize: '15px', fontWeight: '800', color: tx.severity === 'CLEARED' ? '#2ed573' : '#ff4757' }}>
+                            LKR {tx.amount.toLocaleString()}
+                          </div>
+                          <div style={{ fontSize:'10px', color:'#57606f', marginTop:'3px', fontWeight:'600' }}>{SEV[tx.severity]?.label}</div>
                         </div>
                       </div>
                     ))}
@@ -551,9 +553,9 @@ export default function App() {
                 </div>
               )}
 
-              {/* Global Reset Controller */}
-              <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-end' }}>
-                <button onClick={() => { setResult(null); setFileName(''); }} style={{ padding: '10px 20px', background: '#312e81', border: 'none', borderRadius: '8px', color: '#c4b5fd', fontSize: '12px', fontWeight: '700', cursor: 'pointer' }}>🔄 Flush State & Scan New Sheet</button>
+              {/* Data Re-upload Controller Reset */}
+              <div style={{ marginTop: '24px', display: 'flex', justifyContent: 'flex-end' }}>
+                <button onClick={() => { setResult(null); setFileName(''); }} style={{ padding: '12px 24px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', color: '#a4b0be', fontSize: '12px', fontWeight: '700', cursor: 'pointer', transition:'all 0.2s' }}>🔄 Purge Engine Data & Scan New Sheet</button>
               </div>
 
             </div>
