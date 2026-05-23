@@ -64,6 +64,7 @@ function runFraudDetection(data) {
     const date = (row.Date || row.date || new Date().toISOString().split('T')[0]).toString().trim();
     const time = (row.Time || row.time || '').toString().trim();
     const desc = (row.Description || row.description || row.Narration || row.narration || '').toString().trim();
+    const isFixed = row.isFixed || false;
 
     const unknownIndicators = ['unknown', 'n/a', 'none', 'test', 'dummy', 'sample', 'misc', 'miscellaneous', 'other', '???', 'unidentified', 'anonymous'];
     const isUnknownSupplier = unknownIndicators.some(w => sup.toLowerCase().includes(w));
@@ -71,9 +72,10 @@ function runFraudDetection(data) {
     const isUnknownDesc = !desc || desc === '' || unknownIndicators.some(w => desc.toLowerCase().includes(w));
     const isMaskedAccount = /\*{2,}|x{3,}/i.test(sup) || /\*{2,}|x{3,}/i.test(inv);
 
-    if (isUnknownSupplier || (isUnknownInvoice && isUnknownDesc) || isMaskedAccount) {
+    // Ellyeta ganneth fix karapu nathi ewai
+    if (!isFixed && (isUnknownSupplier || (isUnknownInvoice && isUnknownDesc) || isMaskedAccount)) {
       unknownTransactions.push({
-        id: idx, date, time, supplier: sup, invoice: inv || 'N/A', amount: amt, description: desc || '—',
+        id: idx, date, time, supplier: sup, invoice: inv || 'N/A', amount: amt, description: desc || '—', isFixed: false,
         unknownReasons: [
           isUnknownSupplier && 'Unknown/masked supplier',
           isUnknownInvoice && 'Missing invoice reference',
@@ -85,19 +87,19 @@ function runFraudDetection(data) {
     }
 
     if (amt > 500000) { reasons.push('Large Transaction (>500k)'); severity.push('HIGH'); }
-    if (isUnknownSupplier) { reasons.push('Unknown Supplier'); severity.push('HIGH'); }
+    if (isUnknownSupplier && !isFixed) { reasons.push('Unknown Supplier'); severity.push('HIGH'); }
     if (inv && invoiceCounts[inv] > 1) { reasons.push('Duplicate Invoice Ref'); severity.push('HIGH'); }
     if (amt > 0 && amt % 10000 === 0) { reasons.push('Round-number Amount'); severity.push('MEDIUM'); }
     if (sup && supplierAmounts[sup] > 2000000) { reasons.push('Supplier Cumulative Spend >2M'); severity.push('MEDIUM'); }
     if (date && dateGroups[date] > 10) { reasons.push('High Volume Day'); severity.push('LOW'); }
-    if (!inv || inv === '') { reasons.push('Missing Invoice Reference'); severity.push('MEDIUM'); }
+    if ((!inv || inv === '') && !isFixed) { reasons.push('Missing Invoice Reference'); severity.push('MEDIUM'); }
     if (isMaskedAccount) { reasons.push('Masked Account Identifier'); severity.push('HIGH'); }
 
-    if (reasons.length > 0) {
+    if (reasons.length > 0 && !isFixed) {
       const topSeverity = severity.includes('HIGH') ? 'HIGH' : severity.includes('MEDIUM') ? 'MEDIUM' : 'LOW';
       flagged.push({
         id: idx, date, time, supplier: sup, invoice: inv || 'N/A',
-        amount: amt, reasons, severity: topSeverity,
+        amount: amt, reasons, severity: topSeverity, isFixed: false,
         auditRef: genAuditRef(), flaggedAt: new Date().toISOString(), description: desc || '—',
       });
     }
@@ -115,9 +117,11 @@ function runFraudDetection(data) {
     const date = (row.Date || row.date || '').toString().trim();
     const time = (row.Time || row.time || '').toString().trim();
     const desc = (row.Description || row.description || row.Narration || row.narration || '').toString().trim();
+    const isFixed = row.isFixed || false;
+
     return {
       id: idx, date, time, supplier: sup, invoice: inv || 'N/A',
-      amount: amt, reasons: [], severity: 'CLEARED', description: desc || '—',
+      amount: amt, reasons: [], severity: isFixed ? 'FIXED' : 'CLEARED', description: desc || '—', isFixed,
       auditRef: genAuditRef(), flaggedAt: new Date().toISOString(),
     };
   });
@@ -146,6 +150,7 @@ function parseTextToRows(text) {
       Supplier: unknownMatch ? 'Unknown' : (line.match(/[A-Z][a-zA-Z]+ (?:Store|Mart|Tech|Ltd|Pvt|Co|Inc|Corp)/)?.[0] || `Supplier ${i + 1}`),
       Invoice_No: invMatch ? invMatch[0].toUpperCase() : `INV${String(i + 1).padStart(4, '0')}`,
       Description: line.slice(0, 80),
+      isFixed: false
     };
   }).filter(Boolean);
 }
@@ -156,6 +161,7 @@ const SEV = {
   MEDIUM: { dot: '#ffa502', glow: 'rgba(255,165,2,0.4)', bg: 'rgba(255,165,2,0.06)', border: 'rgba(255,165,2,0.25)', label: 'Suspicious' },
   LOW: { dot: '#2ed573', glow: 'rgba(46,213,115,0.4)', bg: 'rgba(46,213,115,0.06)', border: 'rgba(46,213,115,0.25)', label: 'Normal' },
   CLEARED: { dot: '#1e90ff', glow: 'rgba(30,144,255,0.4)', bg: 'rgba(30,144,255,0.06)', border: 'rgba(30,144,255,0.2)', label: 'Verified Safe' },
+  FIXED: { dot: '#00d2d3', glow: 'rgba(0,210,211,0.4)', bg: 'rgba(0,210,211,0.06)', border: 'rgba(0,210,211,0.25)', label: 'Error Fixed' },
 };
 
 function Avatar({ name, severity }) {
@@ -264,54 +270,78 @@ function AIChatAssistant({ result }) {
   );
 }
 
-// ─── Unknown Transactions Panel Workspace ────────────────────────────────────
-function UnknownTransactionsPanel({ unknowns, onUpdateRow }) {
+// ─── Unknown Transactions & Fixed Workspace Panel ────────────────────────────────────
+function UnknownTransactionsPanel({ unknowns, fixedRows, onUpdateRow, onReEditRow }) {
   const [editingId, setEditingId] = useState(null);
   const [supVal, setSupVal] = useState('');
   const [invVal, setInvVal] = useState('');
 
-  if (unknowns.length === 0) {
-    return (
-      <div style={{ background: 'rgba(46,213,115,0.04)', border: '1px solid rgba(46,213,115,0.2)', borderRadius: '16px', padding: '20px', marginBottom: '20px' }}>
-        <div style={{ fontSize: '14px', fontWeight: '700', color: '#2ed573' }}>✨ Integrity Check Passed</div>
-        <div style={{ fontSize: '12px', color: '#9ca3af', marginTop: '4px' }}>All anonymous nodes resolved successfully. Full matrix synchronized.</div>
-      </div>
-    );
-  }
-
   return (
-    <div style={{ background: 'linear-gradient(135deg, rgba(255,71,87,0.03), rgba(0,0,0,0.3))', border: '1px solid rgba(255,71,87,0.25)', borderRadius: '16px', padding: '20px', marginBottom: '20px' }}>
-      <div style={{ fontSize: '14px', fontWeight: '700', color: '#ff6b81', marginBottom: '12px' }}>⚠️ Unresolved Identity Blocks ({unknowns.length})</div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-        {unknowns.map(u => (
-          <div key={u.id} style={{ background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <div style={{ fontSize: '13px', fontWeight: '700', color: '#fff' }}>{u.supplier}</div>
-                <div style={{ fontSize: '11px', color: '#ff4757', marginTop: '2px' }}>LKR {u.amount.toLocaleString()}</div>
-              </div>
-              <button onClick={() => { if (editingId === u.id) setEditingId(null); else { setEditingId(u.id); setSupVal(u.supplier); setInvVal(u.invoice); } }} style={{ background: 'rgba(255,255,255,0.05)', border: 'none', color: '#fff', padding: '5px 12px', borderRadius: '6px', fontSize: '11px', cursor: 'pointer' }}>
-                {editingId === u.id ? 'Close' : '🔧 Override'}
-              </button>
-            </div>
-            {editingId === u.id && (
-              <div style={{ marginTop: '10px', padding: '10px', background: 'rgba(0,0,0,0.3)', borderRadius: '8px' }}>
-                <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
-                  <div style={{ flex: 1 }}>
-                    <label style={{ fontSize: '10px', color: '#a4b0be', display: 'block', marginBottom: '4px' }}>Correct Supplier</label>
-                    <input type="text" value={supVal} onChange={e => setSupVal(e.target.value)} style={{ width: '100%', padding: '6px', background: '#060913', color: '#fff', border: '1px solid #333', borderRadius: '4px', fontSize: '11px' }} />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      
+      {/* SECTION 1: INCORRECT ANOMALIES AREA */}
+      <div style={{ background: 'linear-gradient(135deg, rgba(255,71,87,0.03), rgba(0,0,0,0.3))', border: '1px solid rgba(255,71,87,0.25)', borderRadius: '16px', padding: '20px' }}>
+        <div style={{ fontSize: '14px', fontWeight: '700', color: '#ff6b81', marginBottom: '12px' }}>⚠️ Unresolved Identity Blocks ({unknowns.length})</div>
+        {unknowns.length === 0 ? (
+          <div style={{ fontSize: '12px', color: '#2ed573' }}>✨ All anomalies cleared from this layout!</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {unknowns.map(u => (
+              <div key={u.id} style={{ background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: '700', color: '#fff' }}>{u.supplier}</div>
+                    <div style={{ fontSize: '11px', color: '#ff4757', marginTop: '2px' }}>LKR {u.amount.toLocaleString()} <span style={{color:'#747d8c', marginLeft:'8px'}}>({u.invoice})</span></div>
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <label style={{ fontSize: '10px', color: '#a4b0be', display: 'block', marginBottom: '4px' }}>Correct Invoice</label>
-                    <input type="text" value={invVal} onChange={e => setInvVal(e.target.value)} style={{ width: '100%', padding: '6px', background: '#060913', color: '#fff', border: '1px solid #333', borderRadius: '4px', fontSize: '11px' }} />
-                  </div>
+                  <button onClick={() => { if (editingId === u.id) setEditingId(null); else { setEditingId(u.id); setSupVal(u.supplier); setInvVal(u.invoice); } }} style={{ background: '#ff475722', border: '1px solid #ff475744', color: '#ff4757', padding: '5px 12px', borderRadius: '6px', fontSize: '11px', cursor: 'pointer', fontWeight:'600' }}>
+                    {editingId === u.id ? 'Close' : '🔧 Override'}
+                  </button>
                 </div>
-                <button onClick={() => { onUpdateRow(u.id, supVal, invVal); setEditingId(null); }} style={{ background: '#2ed573', border: 'none', color: '#fff', padding: '6px 12px', borderRadius: '4px', fontSize: '11px', fontWeight: '700', cursor: 'pointer' }}>Save & Hot-Fix Ledger</button>
+                {editingId === u.id && (
+                  <div style={{ marginTop: '10px', padding: '10px', background: 'rgba(0,0,0,0.3)', borderRadius: '8px' }}>
+                    <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ fontSize: '10px', color: '#a4b0be', display: 'block', marginBottom: '4px' }}>Correct Supplier</label>
+                        <input type="text" value={supVal} onChange={e => setSupVal(e.target.value)} style={{ width: '100%', padding: '6px', background: '#060913', color: '#fff', border: '1px solid #333', borderRadius: '4px', fontSize: '11px' }} />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ fontSize: '10px', color: '#a4b0be', display: 'block', marginBottom: '4px' }}>Correct Invoice</label>
+                        <input type="text" value={invVal} onChange={e => setInvVal(e.target.value)} style={{ width: '100%', padding: '6px', background: '#060913', color: '#fff', border: '1px solid #333', borderRadius: '4px', fontSize: '11px' }} />
+                      </div>
+                    </div>
+                    <button onClick={() => { onUpdateRow(u.id, supVal, invVal); setEditingId(null); }} style={{ background: '#2ed573', border: 'none', color: '#fff', padding: '6px 12px', borderRadius: '4px', fontSize: '11px', fontWeight: '700', cursor: 'pointer' }}>✔️ Save & Move to Fixed Section</button>
+                  </div>
+                )}
               </div>
-            )}
+            ))}
           </div>
-        ))}
+        )}
       </div>
+
+      {/* NEW SECTION 2: ERROR FIXED WORKSPACE */}
+      <div style={{ background: 'linear-gradient(135deg, rgba(0,210,211,0.03), rgba(0,0,0,0.3))', border: '1px solid rgba(0,210,211,0.25)', borderRadius: '16px', padding: '20px' }}>
+        <div style={{ fontSize: '14px', fontWeight: '700', color: '#00d2d3', marginBottom: '12px' }}>🛠️ Error Fixed Workspace ({fixedRows.length})</div>
+        {fixedRows.length === 0 ? (
+          <div style={{ fontSize: '12px', color: '#747d8c' }}>No logs resolved yet. Hot-fix anomalies to populate this zone.</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {fixedRows.map(f => (
+              <div key={f.id} style={{ background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '12px', border: '1px solid rgba(0,210,211,0.15)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: '700', color: '#fff' }}>{f.supplier} <span style={{fontSize:'10px', padding:'2px 6px', background:'#00d2d322', color:'#00d2d3', borderRadius:'4px', marginLeft:'6px'}}>Fixed</span></div>
+                    <div style={{ fontSize: '11px', color: '#00d2d3', marginTop: '2px' }}>LKR {f.amount.toLocaleString()} <span style={{color:'#747d8c', marginLeft:'8px'}}>({f.invoice})</span></div>
+                  </div>
+                  <button onClick={() => onReEditRow(f.id)} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', padding: '5px 12px', borderRadius: '6px', fontSize: '11px', cursor: 'pointer' }}>
+                    ✏️ Re-Edit
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
     </div>
   );
 }
@@ -343,40 +373,62 @@ export default function App() {
         rows = parseTextToRows(value);
       }
       if (rows.length === 0) throw new Error('No compatible logs extracted.');
-      setResult(runFraudDetection(rows));
+      
+      // Injecting basic standard setup parameter keys
+      const updatedRows = rows.map(r => ({...r, isFixed: false}));
+      setResult(runFraudDetection(updatedRows));
     } catch (err) { alert('Data Matrix Error: ' + err.message); }
     setLoading(false);
   }, []);
 
-  // 🔄 Hot-Fix Function: අනෙක් කිසිම දත්තයක් වෙනස් කරන්නේ නැතුව අදාළ පේළිය විතරක් Update කරයි!
+  // 🔄 Hot-Fix & Move Logic: Item eka Incorrect list eken ain karala "Fixed Section" ekata danna
   const handleUpdateRow = (id, updatedSupplier, updatedInvoice) => {
     if (!result) return;
     
-    // සියලුම දත්ත පද්ධතිය (Correct details සහ Fixed details දෙකම සුරැකෙන පරිදි map කිරීම)
     const nextRows = result.allRows.map(row => 
       row.id === id 
-        ? { ...row, supplier: updatedSupplier, invoice: updatedInvoice, severity: 'CLEARED', reasons: [] } 
+        ? { ...row, supplier: updatedSupplier, invoice: updatedInvoice, isFixed: true } 
         : row
     );
 
-    // AI Engine එක නැවත Run කරවා නව තත්ත්වයන් ගණනය කිරීම
     const dynamicInputData = nextRows.map(r => ({
       Date: r.date,
       Time: r.time,
       Amount: r.amount,
       Supplier: r.supplier,
       Invoice_No: r.invoice,
-      Description: r.description
+      Description: r.description,
+      isFixed: r.isFixed
     }));
 
     setResult(runFraudDetection(dynamicInputData));
   };
 
-  // 📥 Excel Export Engine: යාවත්කාලීන කරන ලද මුළු දත්ත ලැයිස්තුවම Excel එකක් ලෙස Download කරගැනීම
+  // ✏️ Re-Edit Logic: Fixed section eke thiyena ekak aayeth edit karanna oni unoth track karana filter eka
+  const handleReEditRow = (id) => {
+    if (!result) return;
+
+    const nextRows = result.allRows.map(row => 
+      row.id === id ? { ...row, isFixed: false } : row
+    );
+
+    const dynamicInputData = nextRows.map(r => ({
+      Date: r.date,
+      Time: r.time,
+      Amount: r.amount,
+      Supplier: r.supplier,
+      Invoice_No: r.invoice,
+      Description: r.description,
+      isFixed: r.isFixed
+    }));
+
+    setResult(runFraudDetection(dynamicInputData));
+  };
+
+  // 📥 Excel Export Engine: Code structure for active downloads
   const downloadCorrectedFile = () => {
     if (!result || result.allRows.length === 0) return;
 
-    // Excel එකට සුදුසු පිරිසිදු දත්ත ව්‍යුහය සකසා ගැනීම
     const cleanedSheetData = result.allRows.map(r => ({
       'Date': r.date,
       'Time': r.time,
@@ -384,21 +436,20 @@ export default function App() {
       'Invoice No': r.invoice,
       'Amount (LKR)': r.amount,
       'Description': r.description,
-      'Audit Trace Status': r.severity === 'CLEARED' ? 'VERIFIED SAFE' : r.severity
+      'Audit Trace Status': r.isFixed ? 'ERROR FIXED' : r.severity
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(cleanedSheetData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Audited_Ledger');
-    
-    // File එක බාගත කිරීමේ ක්‍රියාවලිය
     XLSX.writeFile(workbook, `Corrected_Audit_Report_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   const flaggedCount = result ? result.flagged.filter(f => f.severity === 'HIGH').length : 0;
   const suspCount = result ? result.flagged.filter(f => f.severity === 'MEDIUM').length : 0;
   const unknownCount = result ? result.unknownTransactions.length : 0;
-  const clearCount = result ? result.allRows.filter(r => r.severity === 'CLEARED').length : 0;
+  const fixedRowsList = result ? result.allRows.filter(r => r.isFixed === true) : [];
+  const clearCount = result ? result.allRows.filter(r => r.severity === 'CLEARED' || r.severity === 'FIXED').length : 0;
 
   return (
     <>
@@ -416,11 +467,11 @@ export default function App() {
             <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'linear-gradient(135deg, #7c3aed, #ea580c)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>🛡️</div>
             <div>
               <div style={{ fontSize: '16px', fontWeight: '800', color: '#fff' }}>AuditIQ Premium Pro</div>
-              <div style={{ fontSize: '10px', color: '#9333ea', fontWeight: '600', letterSpacing: '0.5px' }}>EXHIBITION PLATFORM EXPANDED</div>
+              <div style={{ fontSize: '10px', color: '#00d2d3', fontWeight: '600', letterSpacing: '0.5px' }}>EXHIBITION MATRIX UPDATE</div>
             </div>
           </div>
           {result && (
-            <button onClick={downloadCorrectedFile} style={{ background: 'linear-gradient(135deg, #2ed573, #26af5f)', color: '#fff', border: 'none', borderRadius: '10px', padding: '8px 16px', fontSize: '12px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <button onClick={downloadCorrectedFile} style={{ background: 'linear-gradient(135deg, #00d2d3, #01a3a4)', color: '#fff', border: 'none', borderRadius: '10px', padding: '8px 16px', fontSize: '12px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
               📥 Download Corrected Excel
             </button>
           )}
@@ -455,9 +506,9 @@ export default function App() {
                   <div style={{ fontSize: '11px', color: '#a4b0be', fontWeight: '700' }}>ANOMALIES</div>
                   <div style={{ fontSize: '32px', fontWeight: '800', color: '#ff4757' }}>{unknownCount}</div>
                 </div>
-                <div style={{ background: SEV.CLEARED.bg, border: `1px solid ${SEV.CLEARED.border}`, borderRadius: '16px', padding: '16px' }}>
-                  <div style={{ fontSize: '11px', color: '#a4b0be', fontWeight: '700' }}>VERIFIED SAFE</div>
-                  <div style={{ fontSize: '32px', fontWeight: '800', color: '#fff' }}>{clearCount}</div>
+                <div style={{ background: SEV.FIXED.bg, border: `1px solid ${SEV.FIXED.border}`, borderRadius: '16px', padding: '16px' }}>
+                  <div style={{ fontSize: '11px', color: '#a4b0be', fontWeight: '700' }}>ERRORS FIXED</div>
+                  <div style={{ fontSize: '32px', fontWeight: '800', color: '#fff' }}>{fixedRowsList.length}</div>
                 </div>
               </div>
 
@@ -468,12 +519,13 @@ export default function App() {
                   <div style={{ display: 'flex', height: '24px', borderRadius: '6px', overflow: 'hidden', background: '#1e272e', marginBottom: '14px' }}>
                     <div style={{ width: `${result.total > 0 ? (flaggedCount / result.total) * 100 : 0}%`, background: '#ff4757' }} />
                     <div style={{ width: `${result.total > 0 ? (suspCount / result.total) * 100 : 0}%`, background: '#ffa502' }} />
-                    <div style={{ width: `${result.total > 0 ? (clearCount / result.total) * 100 : 0}%`, background: '#1e90ff' }} />
+                    <div style={{ width: `${result.total > 0 ? (fixedRowsList.length / result.total) * 100 : 0}%`, background: '#00d2d3' }} />
+                    <div style={{ width: `${result.total > 0 ? (result.allRows.filter(r=>r.severity==='CLEARED').length / result.total) * 100 : 0}%`, background: '#1e90ff' }} />
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#a4b0be' }}>
                     <span>🔴 Fault: {result.total > 0 ? ((flaggedCount / result.total) * 100).toFixed(0) : 0}%</span>
-                    <span>🟡 Warning: {result.total > 0 ? ((suspCount / result.total) * 100).toFixed(0) : 0}%</span>
-                    <span>🔵 Clean: {result.total > 0 ? ((clearCount / result.total) * 100).toFixed(0) : 0}%</span>
+                    <span>🟡 Fixed: {result.total > 0 ? ((fixedRowsList.length / result.total) * 100).toFixed(0) : 0}%</span>
+                    <span>🔵 Clean: {result.total > 0 ? ((result.allRows.filter(r=>r.severity==='CLEARED').length / result.total) * 100).toFixed(0) : 0}%</span>
                   </div>
                 </div>
 
@@ -499,11 +551,19 @@ export default function App() {
               {/* Tabs Navigation */}
               <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '12px' }}>
                 <button onClick={() => setActiveTab('transactions')} style={{ padding: '8px 16px', background: activeTab === 'transactions' ? 'rgba(139,92,246,0.15)' : 'transparent', color: activeTab === 'transactions' ? '#a78bfa' : '#747d8c', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '700', cursor: 'pointer' }}>📋 Ledger Accounts</button>
-                <button onClick={() => setActiveTab('unknown')} style={{ padding: '8px 16px', background: activeTab === 'unknown' ? 'rgba(255,71,87,0.1)' : 'transparent', color: activeTab === 'unknown' ? '#ff4757' : '#747d8c', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '700', cursor: 'pointer' }}>❓ Fix Anomalies ({unknownCount})</button>
+                <button onClick={() => setActiveTab('unknown')} style={{ padding: '8px 16px', background: activeTab === 'unknown' ? 'rgba(0,210,211,0.15)' : 'transparent', color: activeTab === 'unknown' ? '#00d2d3' : '#747d8c', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '700', cursor: 'pointer' }}>⚙️ Fix Anomalies ({unknownCount})</button>
                 <button onClick={() => setActiveTab('ai')} style={{ padding: '8px 16px', background: activeTab === 'ai' ? 'rgba(139,92,246,0.15)' : 'transparent', color: activeTab === 'ai' ? '#a78bfa' : '#747d8c', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '700', cursor: 'pointer' }}>🤖 Interactive Bot Suite</button>
               </div>
 
-              {activeTab === 'unknown' && <UnknownTransactionsPanel unknowns={result.unknownTransactions} onUpdateRow={handleUpdateRow} />}
+              {activeTab === 'unknown' && (
+                <UnknownTransactionsPanel 
+                  unknowns={result.unknownTransactions} 
+                  fixedRows={fixedRowsList} 
+                  onUpdateRow={handleUpdateRow} 
+                  onReEditRow={handleReEditRow}
+                />
+              )}
+              
               {activeTab === 'ai' && (
                 <div>
                   <AIAnalysisPanel result={result} />
@@ -514,7 +574,7 @@ export default function App() {
               {activeTab === 'transactions' && (
                 <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: '18px', padding: '20px' }}>
                   <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
-                    {['ALL', 'HIGH', 'MEDIUM', 'CLEARED'].map(f => (
+                    {['ALL', 'HIGH', 'MEDIUM', 'FIXED', 'CLEARED'].map(f => (
                       <button key={f} onClick={() => setActiveFilter(f)} style={{ fontSize: '11px', fontWeight: '700', padding: '6px 14px', borderRadius: '20px', cursor: 'pointer', border: `1px solid ${activeFilter === f ? SEV[f]?.dot || '#8b5cf6' : 'rgba(255,255,255,0.06)'}`, background: activeFilter === f ? `${SEV[f]?.dot || '#8b5cf6'}15` : 'transparent', color: activeFilter === f ? SEV[f]?.dot || '#fff' : '#a4b0be' }}>{f}</button>
                     ))}
                   </div>
@@ -533,7 +593,7 @@ export default function App() {
                           )}
                         </div>
                         <div style={{ textAlign: 'right' }}>
-                          <div style={{ fontSize: '14px', fontWeight: '800', color: tx.severity === 'CLEARED' ? '#2ed573' : '#ff4757' }}>LKR {tx.amount.toLocaleString()}</div>
+                          <div style={{ fontSize: '14px', fontWeight: '800', color: tx.severity === 'CLEARED' || tx.severity === 'FIXED' ? '#2ed573' : '#ff4757' }}>LKR {tx.amount.toLocaleString()}</div>
                           <div style={{ fontSize: '10px', color: '#57606f' }}>{SEV[tx.severity]?.label}</div>
                         </div>
                       </div>
@@ -543,7 +603,7 @@ export default function App() {
               )}
 
               <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <button onClick={downloadCorrectedFile} style={{ background: '#2ed573', color: '#fff', border: 'none', borderRadius: '8px', padding: '10px 20px', fontSize: '12px', fontWeight: '700', cursor: 'pointer' }}>
+                <button onClick={downloadCorrectedFile} style={{ background: '#00d2d3', color: '#fff', border: 'none', borderRadius: '8px', padding: '10px 20px', fontSize: '12px', fontWeight: '700', cursor: 'pointer' }}>
                   📥 Download Audited File
                 </button>
                 <button onClick={() => { setResult(null); setFileName(''); }} style={{ padding: '10px 20px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px', color: '#a4b0be', fontSize: '12px', cursor: 'pointer' }}>🔄 Purge Ledger Matrix Data</button>
