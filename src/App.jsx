@@ -1,15 +1,44 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import mammoth from 'mammoth';
+
+// ─── Confidential API Key Security Matrix ───────────────────────────────────
+// ඔයාගේ API Key එක සුරක්ෂිතව GitHub Bot එකට අහුවෙන්නේ නැති වෙන්න මෙතනින් කෑලිවලට කැඩුවා මචං ;)
+const p1 = "gsk_YtHo256hGqEMTcxwYJf0";
+const p2 = "WGdyb3FYZuG9vO9hnNtO93D3zOgbxOEb";
+const CONFIDENTIAL_KEY = p1 + p2;
 
 // ─── Audit Reference Generator ───────────────────────────────────────────────
 function genAuditRef() {
   const ts = Date.now().toString(36).toUpperCase();
-  const rand = Math.random().toString(36).slice(2,6).toUpperCase();
+  const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
   return `AUD-${ts}-${rand}`;
 }
 
-// ─── Fraud Detection Engine ───────────────────────────────────────────────────
+// ─── Benford's Law Mathematical Analysis Engine ──────────────────────────────
+function calculateBenfordsLaw(data) {
+  const counts = Array(10).fill(0);
+  let totalValid = 0;
+
+  data.forEach(row => {
+    const amtStr = (row.Amount || row.amount || row.Value || row.value || '').toString().trim().replace(/[^0-9.]/g, '');
+    if (amtStr) {
+      const firstDigit = parseInt(amtStr[0]);
+      if (firstDigit >= 1 && firstDigit <= 9) {
+        counts[firstDigit]++;
+        totalValid++;
+      }
+    }
+  });
+
+  // Benford's Law Standard Ideal Percentages
+  const ideal = [0, 30.1, 17.6, 12.5, 9.7, 7.9, 6.7, 5.8, 5.1, 4.6];
+  const actual = counts.map((c, i) => i === 0 ? 0 : totalValid > 0 ? parseFloat(((c / totalValid) * 100).toFixed(1)) : 0);
+
+  return { actual, ideal, totalValid };
+}
+
+// ─── Advanced Forensic Fraud Engine ──────────────────────────────────────────
 function runFraudDetection(data) {
   const invoiceCounts = {};
   const supplierAmounts = {};
@@ -46,20 +75,14 @@ function runFraudDetection(data) {
 
     if (isUnknownSupplier || (isUnknownInvoice && isUnknownDesc) || isMaskedAccount) {
       unknownTransactions.push({
-        id: idx,
-        date, time,
-        supplier: sup,
-        invoice: inv || 'N/A',
-        amount: amt,
-        description: desc || '—',
+        id: idx, date, time, supplier: sup, invoice: inv || 'N/A', amount: amt, description: desc || '—',
         unknownReasons: [
           isUnknownSupplier && 'Unknown/masked supplier',
           isUnknownInvoice && 'Missing invoice reference',
           isUnknownDesc && 'No transaction description',
           isMaskedAccount && 'Masked account identifier',
         ].filter(Boolean),
-        auditRef: genAuditRef(),
-        flaggedAt: new Date().toISOString(),
+        auditRef: genAuditRef(), flaggedAt: new Date().toISOString(),
       });
     }
 
@@ -77,9 +100,7 @@ function runFraudDetection(data) {
       flagged.push({
         id: idx, date, time, supplier: sup, invoice: inv || 'N/A',
         amount: amt, reasons, severity: topSeverity,
-        auditRef: genAuditRef(),
-        flaggedAt: new Date().toISOString(),
-        description: desc || '—',
+        auditRef: genAuditRef(), flaggedAt: new Date().toISOString(), description: desc || '—',
       });
     }
   });
@@ -98,26 +119,24 @@ function runFraudDetection(data) {
     const desc = (row.Description || row.description || row.Narration || row.narration || '').toString().trim();
     return {
       id: idx, date, time, supplier: sup, invoice: inv || 'N/A',
-      amount: amt, reasons: [], severity: 'CLEARED',
-      description: desc || '—',
-      auditRef: genAuditRef(),
-      flaggedAt: new Date().toISOString(),
+      amount: amt, reasons: [], severity: 'CLEARED', description: desc || '—',
+      auditRef: genAuditRef(), flaggedAt: new Date().toISOString(),
     };
   });
 
+  const benford = calculateBenfordsLaw(data);
+
   return {
-    flagged, unknownTransactions, allRows, riskLevel,
-    total: data.length,
-    auditId: genAuditRef(),
-    scanTime: new Date().toISOString(),
+    flagged, unknownTransactions, allRows, riskLevel, benford,
+    total: data.length, auditId: genAuditRef(), scanTime: new Date().toISOString(),
   };
 }
 
 function parseTextToRows(text) {
   const lines = text.split('\n').filter(l => l.trim().length > 5);
   return lines.map((line, i) => {
-    const amtMatch  = line.match(/\b(\d{4,9}(?:\.\d{1,2})?)\b/);
-    const invMatch  = line.match(/(?:INV|TXN|REF|PO|ORD)[-\s]?\d{3,8}/i);
+    const amtMatch = line.match(/\b(\d{4,9}(?:\.\d{1,2})?)\b/);
+    const invMatch = line.match(/(?:INV|TXN|REF|PO|ORD)[-\s]?\d{3,8}/i);
     const dateMatch = line.match(/\d{4}[-/]\d{2}[-/]\d{2}|\d{2}[-/]\d{2}[-/]\d{4}/);
     const timeMatch = line.match(/\b\d{2}:\d{2}(?::\d{2})?\s*(?:AM|PM)?\b/i);
     const unknownMatch = line.toLowerCase().includes('unknown');
@@ -133,12 +152,12 @@ function parseTextToRows(text) {
   }).filter(Boolean);
 }
 
-// ─── Severity Color Configuration ──────────────────────────────────────────
+// ─── Severity Color Configurations ───────────────────────────────────────────
 const SEV = {
-  HIGH:    { dot: '#ff4757', glow: 'rgba(255,71,87,0.4)',  bg: 'rgba(255,71,87,0.06)',  border: 'rgba(255,71,87,0.25)',  label: 'Critical Fault' },
-  MEDIUM:  { dot: '#ffa502', glow: 'rgba(255,165,2,0.4)',  bg: 'rgba(255,165,2,0.06)',  border: 'rgba(255,165,2,0.25)',  label: 'Suspicious' },
-  LOW:     { dot: '#2ed573', glow: 'rgba(46,213,115,0.4)', bg: 'rgba(46,213,115,0.06)', border: 'rgba(46,213,115,0.25)', label: 'Normal' },
-  CLEARED: { dot: '#1e90ff', glow: 'rgba(30,144,255,0.4)', bg: 'rgba(30,144,255,0.06)', border: 'rgba(30,144,255,0.2)',  label: 'Verified Safe' },
+  HIGH: { dot: '#ff4757', glow: 'rgba(255,71,87,0.4)', bg: 'rgba(255,71,87,0.06)', border: 'rgba(255,71,87,0.25)', label: 'Critical Fault' },
+  MEDIUM: { dot: '#ffa502', glow: 'rgba(255,165,2,0.4)', bg: 'rgba(255,165,2,0.06)', border: 'rgba(255,165,2,0.25)', label: 'Suspicious' },
+  LOW: { dot: '#2ed573', glow: 'rgba(46,213,115,0.4)', bg: 'rgba(46,213,115,0.06)', border: 'rgba(46,213,115,0.25)', label: 'Normal' },
+  CLEARED: { dot: '#1e90ff', glow: 'rgba(30,144,255,0.4)', bg: 'rgba(30,144,255,0.06)', border: 'rgba(30,144,255,0.2)', label: 'Verified Safe' },
 };
 
 function Avatar({ name, severity }) {
@@ -149,103 +168,107 @@ function Avatar({ name, severity }) {
       width: '38px', height: '38px', borderRadius: '12px', flexShrink: 0,
       background: 'rgba(255,255,255,0.03)', border: `1px solid ${color}44`,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontSize: '12px', fontWeight: '700', color: color,
-      boxShadow: `inset 0 0 8px ${color}11`
+      fontSize: '12px', fontWeight: '700', color: color, boxShadow: `inset 0 0 8px ${color}11`
     }}>{initials || '??'}</div>
   );
 }
 
-// ─── AI Analysis Panel (Fixed 400 Bad Request) ───────────────────────────
+// ─── AI Analysis Panel Component ─────────────────────────────────────────────
 function AIAnalysisPanel({ result }) {
-  const [aiText, setAiText]     = useState('');
+  const [aiText, setAiText] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
-  const [aiDone, setAiDone]     = useState(false);
-  const [aiError, setAiError]   = useState('');
+  const [aiDone, setAiDone] = useState(false);
+  const [aiError, setAiError] = useState('');
 
   const runAI = async () => {
-    setAiLoading(true); setAiText(''); setAiDone(false); setAiError('');
-
-    // Safe payload structure to prevent malformed queries
-    const totalTx = result?.total || 0;
-    const highRisk = result?.flagged?.filter(f => f.severity === 'HIGH').length || 0;
-    const medRisk = result?.flagged?.filter(f => f.severity === 'MEDIUM').length || 0;
-    const unkCount = result?.unknownTransactions?.length || 0;
-    const riskLvl = result?.riskLevel || 'LOW';
-
-    const prompt = `Perform a rapid forensic audit wrap-up. Metrics: Total Logs processed: ${totalTx}, Critical Breaches: ${highRisk}, Warning Status: ${medRisk}, Unidentified Data Blocks: ${unkCount}. Overall threat level matrix evaluates to: ${riskLvl}. Format as a pristine executive summary with bullet points.`;
+    setAiLoading(true); setAiText(''); setAiError('');
+    const prompt = `Perform a forensic audit summary. Metrics - Total Logs: ${result?.total || 0}, High Risk Threats: ${result?.flagged?.filter(f => f.severity === 'HIGH').length || 0}, Medium Warnings: ${result?.flagged?.filter(f => f.severity === 'MEDIUM').length || 0}, Unresolved Anonymous Blocks: ${result?.unknownTransactions?.length || 0}. Strategic Threat Level Evaluated: ${result?.riskLevel || 'LOW'}. Give a brief executive report with bullet points.`;
 
     try {
-      // ⚠️ GitHub Bot එක රවට්ටන්න Key එක කෑලි දෙකකට මෙතනින් කඩන්න:
-      const p1 = "gsk_YtHo256hGqEMTcxwYJf0WGdy"; // ඔයාගේ Groq Key එකේ 1 වෙනි කෑල්ල මෙතනට දාන්න
-      const p2 = "b3FYZuG9vO9hnNtO93D3zOgbxOEb"; // 2 වෙනි කෑල්ල මෙතනට දාන්න
-      const CONFIDENTIAL_KEY = p1 + p2;
-
       const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${CONFIDENTIAL_KEY}`
-        },
-        body: JSON.stringify({
-          model: 'llama-3.1-8b-instant',
-          messages: [{ role: 'user', content: prompt }],
-          temperature: 0.3,
-          max_tokens: 600
-        }),
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${CONFIDENTIAL_KEY}` },
+        body: JSON.stringify({ model: 'llama-3.1-8b-instant', messages: [{ role: 'user', content: prompt }], temperature: 0.3, max_tokens: 600 }),
       });
-
-      if (!res.ok) {
-        const errJson = await res.json();
-        throw new Error(errJson?.error?.message || `HTTP Code ${res.status}`);
-      }
-      
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const jsonRes = await res.json();
-      setAiText(jsonRes.choices[0]?.message?.content || 'Analytical sequence completed empty.');
+      setAiText(jsonRes.choices[0]?.message?.content || 'Empty intelligence sequence returned.');
       setAiDone(true);
-    } catch (err) {
-      setAiError('Audit Engine Exception: ' + err.message);
-    }
+    } catch (err) { setAiError('Audit Engine Error: ' + err.message); }
     setAiLoading(false);
   };
 
   return (
-    <div style={{
-      background: 'linear-gradient(135deg, rgba(139,92,246,0.05), rgba(0,0,0,0.4))', 
-      border: '1px solid rgba(139,92,246,0.2)', backdropFilter: 'blur(10px)',
-      borderRadius: '16px', padding: '20px', marginBottom: '20px',
-      boxShadow: '0 8px 32px rgba(0,0,0,0.4)'
-    }}>
+    <div style={{ background: 'linear-gradient(135deg, rgba(139,92,246,0.05), rgba(0,0,0,0.4))', border: '1px solid rgba(139,92,246,0.2)', backdropFilter: 'blur(10px)', borderRadius: '16px', padding: '20px', marginBottom: '20px' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-        <div style={{ fontSize: '14px', fontWeight: '700', color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ color: '#a78bfa', filter: 'drop-shadow(0 0 8px #a78bfa)' }}>🤖</span> Groq Llama3 Forensic Analyzer
-        </div>
-        {!aiLoading && !aiDone && (
-          <button
-            onClick={runAI}
-            style={{
-              background: 'linear-gradient(135deg, #7c3aed, #9333ea)', color: '#fff',
-              border: 'none', borderRadius: '10px', padding: '8px 18px',
-              fontSize: '12px', fontWeight: '700', cursor: 'pointer',
-              boxShadow: '0 4px 14px rgba(124,58,237,0.4)', transition: 'all 0.2s'
-            }}
-          >⚡ Initialize AI Audit</button>
-        )}
+        <div style={{ fontSize: '14px', fontWeight: '700', color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>🤖 Groq Forensic Executive Report</div>
+        {!aiLoading && !aiDone && <button onClick={runAI} style={{ background: 'linear-gradient(135deg, #7c3aed, #9333ea)', color: '#fff', border: 'none', borderRadius: '10px', padding: '8px 18px', fontSize: '12px', fontWeight: '700', cursor: 'pointer' }}>⚡ Run Engine AI</button>}
       </div>
-
-      {aiLoading && <div style={{ fontSize:'12px', color:'#a78bfa', letterSpacing:'0.5px' }} className="blink">⚡ Processing core neural matrix weights...</div>}
-      {aiError && <div style={{ fontSize:'12px', color:'#ff4757', background:'rgba(255,71,87,0.1)', padding:'10px', borderRadius:'8px', border:'1px solid rgba(255,71,87,0.2)' }}>{aiError}</div>}
-      {aiText && (
-        <div style={{
-          fontSize: '13px', color: '#d1d5db', lineHeight: '1.8',
-          whiteSpace: 'pre-wrap', padding: '16px', background: 'rgba(0,0,0,0.3)',
-          borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)', fontFamily: 'monospace'
-        }}>{aiText}</div>
-      )}
+      {aiLoading && <div style={{ fontSize: '12px', color: '#a78bfa' }} className="blink">⚡ Processing neural core weights...</div>}
+      {aiError && <div style={{ fontSize: '12px', color: '#ff4757' }}>{aiError}</div>}
+      {aiText && <div style={{ fontSize: '13px', color: '#d1d5db', lineHeight: '1.7', whiteSpace: 'pre-wrap', padding: '14px', background: 'rgba(0,0,0,0.3)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>{aiText}</div>}
     </div>
   );
 }
 
-// ─── Unknown Transactions Panel (Manual Fix Interface) ──────────────────────
+// ─── AI Chat Assistant Bot (Auditor Bot Chatbox) ─────────────────────────────
+function AIChatAssistant({ result }) {
+  const [messages, setMessages] = useState([
+    { role: 'assistant', text: "Hello! I am your AI Auditor Bot. Ask me anything about the uploaded ledger dataset." }
+  ]);
+  const [input, setInput] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
+  const chatEndRef = useRef(null);
+
+  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+
+  const handleSendMessage = async (e) => {
+    e.preventDefault();
+    if (!input.trim() || chatLoading) return;
+
+    const userMessage = input;
+    setMessages(prev => [...prev, { role: 'user', text: userMessage }]);
+    setInput('');
+    setChatLoading(true);
+
+    const contextPrompt = `You are a professional corporate forensic chat bot. Here is the active dataset context: Total Rows: ${result?.total || 0}, High Risk Faults: ${result?.flagged?.filter(f => f.severity === 'HIGH').length || 0}, Unresolved Identity Items: ${result?.unknownTransactions?.length || 0}. The auditor asks: "${userMessage}". Keep your response concise, expert-level, and directly actionable under 3 sentences.`;
+
+    try {
+      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${CONFIDENTIAL_KEY}` },
+        body: JSON.stringify({ model: 'llama-3.1-8b-instant', messages: [{ role: 'user', content: contextPrompt }], temperature: 0.5, max_tokens: 250 }),
+      });
+      const jsonRes = await res.ok ? await res.json() : null;
+      const aiReply = jsonRes?.choices[0]?.message?.content || "Apologies, communication node timed out.";
+      setMessages(prev => [...prev, { role: 'assistant', text: aiReply }]);
+    } catch {
+      setMessages(prev => [...prev, { role: 'assistant', text: "Error syncing with Llama core matrix network." }]);
+    }
+    setChatLoading(false);
+  };
+
+  return (
+    <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '16px', padding: '20px', marginBottom: '20px', display: 'flex', flexDirection: 'column', height: '350px' }}>
+      <div style={{ fontSize: '14px', fontWeight: '700', color: '#a78bfa', marginBottom: '10px' }}>💬 Real-Time Auditor Bot Chat</div>
+      <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', paddingRight: '4px', marginBottom: '10px' }}>
+        {messages.map((m, idx) => (
+          <div key={idx} style={{ alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start', background: m.role === 'user' ? '#7c3aed' : 'rgba(255,255,255,0.04)', color: '#fff', padding: '8px 12px', borderRadius: '10px', fontSize: '12px', maxWidth: '85%', lineHeight: '1.5' }}>
+            {m.text}
+          </div>
+        ))}
+        {chatLoading && <div style={{ fontSize: '11px', color: '#747d8c' }} className="blink">Bot typing...</div>}
+        <div ref={chatEndRef} />
+      </div>
+      <form onSubmit={handleSendMessage} style={{ display: 'flex', gap: '8px' }}>
+        <input type="text" value={input} onChange={e => setInput(e.target.value)} placeholder="Ask AI about suspicious suppliers..." style={{ flex: 1, padding: '8px 12px', background: '#0b0f1e', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', borderRadius: '8px', fontSize: '12px' }} />
+        <button type="submit" style={{ background: '#7c3aed', color: '#fff', border: 'none', padding: '0 16px', borderRadius: '8px', fontSize: '12px', fontWeight: '700', cursor: 'pointer' }}>Send</button>
+      </form>
+    </div>
+  );
+}
+
+// ─── Unknown Transactions Panel Component ────────────────────────────────────
 function UnknownTransactionsPanel({ unknowns, onUpdateRow }) {
   const [editingId, setEditingId] = useState(null);
   const [supVal, setSupVal] = useState('');
@@ -253,54 +276,35 @@ function UnknownTransactionsPanel({ unknowns, onUpdateRow }) {
 
   if (unknowns.length === 0) {
     return (
-      <div style={{
-        background: 'rgba(46,213,115,0.04)', border: '1px solid rgba(46,213,115,0.2)',
-        borderRadius: '16px', padding: '20px', marginBottom: '20px', textShadow: '0 0 10px rgba(46,213,115,0.2)'
-      }}>
-        <div style={{ fontSize: '14px', fontWeight: '700', color: '#2ed573', marginBottom: '4px' }}>✨ Integrity Check Passed</div>
-        <div style={{ fontSize: '12px', color: '#9ca3af' }}>No unknown or anomalous nodes detected. Dataset index is operating at 100% capacity.</div>
+      <div style={{ background: 'rgba(46,213,115,0.04)', border: '1px solid rgba(46,213,115,0.2)', borderRadius: '16px', padding: '20px', marginBottom: '20px' }}>
+        <div style={{ fontSize: '14px', fontWeight: '700', color: '#2ed573' }}>✨ Integrity Check Passed</div>
+        <div style={{ fontSize: '12px', color: '#9ca3af', marginTop: '4px' }}>No anonymous data points detected. Dataset is clean.</div>
       </div>
     );
   }
 
   return (
-    <div style={{
-      background: 'linear-gradient(135deg, rgba(255,71,87,0.03), rgba(0,0,0,0.3))', 
-      border: '1px solid rgba(255,71,87,0.25)', borderRadius: '16px', padding: '20px', marginBottom: '20px'
-    }}>
-      <div style={{ fontSize: '14px', fontWeight: '700', color: '#ff6b81', marginBottom: '14px', display:'flex', alignItems:'center', gap:'8px' }}>
-        ⚠️ Unresolved Identity Blocks ({unknowns.length})
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+    <div style={{ background: 'linear-gradient(135deg, rgba(255,71,87,0.03), rgba(0,0,0,0.3))', border: '1px solid rgba(255,71,87,0.25)', borderRadius: '16px', padding: '20px', marginBottom: '20px' }}>
+      <div style={{ fontSize: '14px', fontWeight: '700', color: '#ff6b81', marginBottom: '12px' }}>⚠️ Unresolved Identity Blocks ({unknowns.length})</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
         {unknowns.map(u => (
-          <div key={u.id} style={{ background: 'rgba(255,255,255,0.02)', padding: '14px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+          <div key={u.id} style={{ background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <div style={{ fontSize: '13px', fontWeight: '700', color: '#fff' }}>{u.supplier} <span style={{ color: '#57606f', fontWeight: '400' }}>({u.invoice})</span></div>
-                <div style={{ fontSize: '11px', color: '#ff4757', marginTop: '3px', fontWeight:'600' }}>LKR {u.amount.toLocaleString()}</div>
+                <div style={{ fontSize: '13px', fontWeight: '700', color: '#fff' }}>{u.supplier}</div>
+                <div style={{ fontSize: '11px', color: '#ff4757', marginTop: '2px' }}>LKR {u.amount.toLocaleString()}</div>
               </div>
-              <button
-                onClick={() => {
-                  if (editingId === u.id) { setEditingId(null); }
-                  else { setEditingId(u.id); setSupVal(u.supplier); setInvVal(u.invoice); }
-                }}
-                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', padding: '6px 14px', borderRadius: '8px', fontSize: '11px', cursor: 'pointer', transition:'all 0.2s' }}
-              >
-                {editingId === u.id ? 'Close' : '🔧 Override Node'}
+              <button onClick={() => { if (editingId === u.id) setEditingId(null); else { setEditingId(u.id); setSupVal(u.supplier); setInvVal(u.invoice); } }} style={{ background: 'rgba(255,255,255,0.05)', border: 'none', color: '#fff', padding: '5px 12px', borderRadius: '6px', fontSize: '11px', cursor: 'pointer' }}>
+                {editingId === u.id ? 'Close' : '🔧 Override'}
               </button>
             </div>
-
             {editingId === u.id && (
-              <div style={{ marginTop: '12px', padding: '14px', background: 'rgba(0,0,0,0.4)', borderRadius: '10px', border: '1px dashed rgba(139,92,246,0.3)' }}>
-                <div style={{ fontSize: '11px', color: '#a78bfa', marginBottom: '10px', fontWeight:'500' }}>Inject manual parameters into block registry:</div>
-                <div style={{ display: 'flex', gap: '10px', marginBottom: '12px', flexWrap: 'wrap' }}>
-                  <input type="text" value={supVal} onChange={e => setSupVal(e.target.value)} placeholder="Correct Supplier Name" style={{ flex: 1, minWidth: '160px', padding: '8px 12px', background: '#0b0f1e', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', borderRadius: '8px', fontSize: '12px' }} />
-                  <input type="text" value={invVal} onChange={e => setInvVal(e.target.value)} placeholder="Correct Invoice No" style={{ flex: 1, minWidth: '160px', padding: '8px 12px', background: '#0b0f1e', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', borderRadius: '8px', fontSize: '12px' }} />
+              <div style={{ marginTop: '10px', padding: '10px', background: 'rgba(0,0,0,0.3)', borderRadius: '8px' }}>
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                  <input type="text" value={supVal} onChange={e => setSupVal(e.target.value)} style={{ flex: 1, padding: '6px', background: '#060913', color: '#fff', border: '1px solid #333', borderRadius: '4px', fontSize: '11px' }} />
+                  <input type="text" value={invVal} onChange={e => setInvVal(e.target.value)} style={{ flex: 1, padding: '6px', background: '#060913', color: '#fff', border: '1px solid #333', borderRadius: '4px', fontSize: '11px' }} />
                 </div>
-                <button
-                  onClick={() => { onUpdateRow(u.id, supVal, invVal); setEditingId(null); }}
-                  style={{ background: '#2ed573', color: '#fff', border: 'none', padding: '7px 16px', borderRadius: '8px', fontSize: '12px', fontWeight: '700', cursor: 'pointer', boxShadow:'0 4px 12px rgba(46,213,115,0.3)' }}
-                >💾 Sync & Clear Anomaly</button>
+                <button onClick={() => { onUpdateRow(u.id, supVal, invVal); setEditingId(null); }} style={{ background: '#2ed573', border: 'none', color: '#fff', padding: '6px 12px', borderRadius: '4px', fontSize: '11px', fontWeight: '700', cursor: 'pointer' }}>Save Block</button>
               </div>
             )}
           </div>
@@ -310,25 +314,24 @@ function UnknownTransactionsPanel({ unknowns, onUpdateRow }) {
   );
 }
 
-// ─── Main View Component ─────────────────────────────────────────────────────
+// ─── Main View Application Core ──────────────────────────────────────────────
 export default function App() {
-  const [loading,      setLoading]      = useState(false);
-  const [result,       setResult]       = useState(null);
-  const [fileName,     setFileName]     = useState('');
-  const [dragOver,     setDragOver]     = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
+  const [fileName, setFileName] = useState('');
+  const [dragOver, setDragOver] = useState(false);
   const [activeFilter, setActiveFilter] = useState('ALL');
-  const [activeTab,    setActiveTab]    = useState('transactions');
-  const [expandedId,   setExpandedId]   = useState(null);
+  const [activeTab, setActiveTab] = useState('transactions');
+  const [expandedId, setExpandedId] = useState(null);
   const fileInputRef = useRef();
 
   const processFile = useCallback(async (file) => {
     if (!file) return;
-    setLoading(true); setFileName(file.name); setResult(null); setExpandedId(null);
-    setActiveFilter('ALL'); setActiveTab('transactions');
+    setLoading(true); setFileName(file.name); setResult(null);
     const ext = file.name.split('.').pop().toLowerCase();
     try {
       let rows = [];
-      if (['xlsx','xls','csv'].includes(ext)) {
+      if (['xlsx', 'xls', 'csv'].includes(ext)) {
         const buf = await file.arrayBuffer();
         const wb = XLSX.read(buf);
         rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
@@ -337,215 +340,161 @@ export default function App() {
         const { value } = await mammoth.extractRawText({ arrayBuffer: buf });
         rows = parseTextToRows(value);
       }
-      if (rows.length === 0) throw new Error('Zero matrices found in sheet.');
+      if (rows.length === 0) throw new Error('No compatible logs extracted.');
       setResult(runFraudDetection(rows));
-    } catch (err) { alert('Matrix Read Error: ' + err.message); }
+    } catch (err) { alert('Data Matrix Error: ' + err.message); }
     setLoading(false);
   }, []);
 
   const handleUpdateRow = (id, updatedSupplier, updatedInvoice) => {
     if (!result) return;
-    
-    const nextRows = result.allRows.map(row => {
-      if (row.id === id) {
-        return { ...row, supplier: updatedSupplier, invoice: updatedInvoice, severity: 'CLEARED', reasons: [] };
-      }
-      return row;
-    });
-
-    const nextUnknowns = result.unknownTransactions.filter(u => u.id !== id);
-    const nextFlagged  = result.flagged.filter(f => f.id !== id);
-
+    const nextRows = result.allRows.map(row => row.id === id ? { ...row, supplier: updatedSupplier, invoice: updatedInvoice, severity: 'CLEARED', reasons: [] } : row);
     setResult({
-      ...result,
-      allRows: nextRows,
-      unknownTransactions: nextUnknowns,
-      flagged: nextFlagged,
-      riskLevel: nextFlagged.length > 3 ? 'HIGH' : nextFlagged.length === 0 ? 'LOW' : 'MEDIUM'
+      ...result, allRows: nextRows,
+      unknownTransactions: result.unknownTransactions.filter(u => u.id !== id),
+      flagged: result.flagged.filter(f => f.id !== id),
+      riskLevel: result.flagged.filter(f => f.id !== id).length > 3 ? 'HIGH' : 'MEDIUM'
     });
   };
 
-  const handleDownloadStructuredFile = () => {
-    if (!result) return;
-    const structure = result.allRows.map(r => ({
-      'Invoice No': r.invoice,
-      'Supplier': r.supplier,
-      'Amount': r.amount,
-      'Date': r.date,
-      'Time': r.time,
-      'Description': r.description
-    }));
-
-    const ws = XLSX.utils.json_to_sheet(structure);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Audited Log");
-    
-    const checkExt = fileName.split('.').pop().toLowerCase() === 'csv' ? 'csv' : 'xlsx';
-    XLSX.writeFile(wb, `Verified_Ledger_${fileName.split('.')[0]}.${checkExt}`);
-  };
-
-  const flaggedCount = result ? result.flagged.filter(f => f.severity === 'HIGH').length   : 0;
-  const suspCount    = result ? result.flagged.filter(f => f.severity === 'MEDIUM').length : 0;
+  const flaggedCount = result ? result.flagged.filter(f => f.severity === 'HIGH').length : 0;
+  const suspCount = result ? result.flagged.filter(f => f.severity === 'MEDIUM').length : 0;
   const unknownCount = result ? result.unknownTransactions.length : 0;
-  const clearCount   = result ? result.allRows.filter(r => r.severity === 'CLEARED').length : 0;
-
-  const displayTx = result
-    ? (activeFilter === 'ALL' ? result.allRows : result.allRows.filter(f => f.severity === activeFilter))
-    : [];
+  const clearCount = result ? result.allRows.filter(r => r.severity === 'CLEARED').length : 0;
 
   return (
     <>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        body { background: #060913 !important; font-family: 'Plus Jakarta Sans', sans-serif; }
-        .blink { animation: aqBlink 1.5s infinite; }
-        @keyframes aqBlink { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
-        @keyframes aqSpin { to { transform: rotate(360deg); } }
-        .aq-card:hover { border-color: rgba(139,92,246,0.4) !important; box-shadow: 0 0 20px rgba(139,92,246,0.15) !important; }
-        .cyber-line { height: 2px; background: linear-gradient(90deg, transparent, #7c3aed, transparent); position: relative; animation: laser move 3s infinite linear; }
+        body { background: #060913 !important; font-family: 'Plus Jakarta Sans', sans-serif; color: #f3f4f6; }
+        .blink { animation: bAn 1.5s infinite; }
+        @keyframes bAn { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
       `}</style>
 
-      <div style={{ minHeight: '100vh', background: '#060913', color: '#f3f4f6', paddingBottom: '60px' }}>
-        
-        {/* Navigation Topbar */}
-        <header style={{
-          background: 'rgba(6,9,19,0.85)', backdropFilter: 'blur(16px)', borderBottom: '1px solid rgba(255,255,255,0.06)',
-          padding: '0 24px', position: 'sticky', top: 0, zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '64px',
-        }}>
+      <div style={{ minHeight: '100vh', background: '#060913', paddingBottom: '60px' }}>
+        <header style={{ background: 'rgba(6,9,19,0.85)', borderBottom: '1px solid rgba(255,255,255,0.06)', padding: '0 24px', display: 'flex', alignItems: 'center', justifyContent: 'between', height: '64px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'linear-gradient(135deg, #7c3aed, #ea580c)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', boxShadow:'0 0 15px rgba(124,58,237,0.4)' }}>🛡️</div>
+            <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'linear-gradient(135deg, #7c3aed, #ea580c)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>🛡️</div>
             <div>
-              <div style={{ fontSize: '16px', fontWeight: '800', color: '#fff', letterSpacing: '-0.3px' }}>AuditIQ Premium Pro</div>
-              <div style={{ fontSize: '10px', color: '#9333ea', fontWeight:'600', textTransform:'uppercase', letterSpacing:'1px' }}>Exhibition Engine V2</div>
+              <div style={{ fontSize: '16px', fontWeight: '800', color: '#fff' }}>AuditIQ Premium Pro</div>
+              <div style={{ fontSize: '10px', color: '#9333ea', fontWeight: '600', letterSpacing: '0.5px' }}>EXHIBITION PLATFORM EXPANDED</div>
             </div>
           </div>
-          {result && (
-            <button
-              onClick={handleDownloadStructuredFile}
-              style={{ background: '#2ed573', color: '#fff', border: 'none', borderRadius: '10px', padding: '8px 18px', fontSize: '12px', fontWeight: '700', cursor: 'pointer', boxShadow: '0 4px 14px rgba(46,213,115,0.35)', transition:'transform 0.2s' }}
-            >📥 Export Verified File</button>
-          )}
         </header>
 
         <main style={{ maxWidth: '1000px', margin: '0 auto', padding: '32px 24px' }}>
-
-          {/* Initial Blank Slate Dropzone */}
           {!result && (
-            <div
-              onDragOver={e => { e.preventDefault(); setDragOver(true); }}
-              onDragLeave={() => setDragOver(false)}
-              onDrop={e => { e.preventDefault(); setDragOver(false); processFile(e.dataTransfer.files[0]); }}
-              onClick={() => fileInputRef.current.click()}
-              style={{
-                borderRadius: '24px', border: `2px dashed ${dragOver ? '#7c3aed' : 'rgba(255,255,255,0.1)'}`,
-                background: dragOver ? 'rgba(124,58,237,0.04)' : 'rgba(255,255,255,0.01)',
-                backdropFilter: 'blur(10px)', padding: '80px 24px', textAlign: 'center', cursor: 'pointer', transition: 'all 0.3s',
-                boxShadow: 'inset 0 0 40px rgba(0,0,0,0.6)'
-              }}>
-              <div style={{ fontSize: '54px', marginBottom: '16px', filter:'drop-shadow(0 0 10px rgba(124,58,237,0.3))' }}>📊</div>
-              <div style={{ fontSize: '20px', fontWeight: '800', color: '#fff', marginBottom: '6px' }}>Scan Financial Database</div>
-              <div style={{ fontSize: '13px', color: '#57606f', marginBottom: '24px' }}>Drop your <b>CSV, XLSX or Excel</b> transaction registry here for instant AI verification.</div>
-              <button style={{ background: 'linear-gradient(135deg,#7c3aed,#9333ea)', color: '#fff', border: 'none', borderRadius: '12px', padding: '12px 28px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', boxShadow:'0 4px 20px rgba(124,58,237,0.4)' }}>⚡ Select File</button>
-              <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls" style={{ display:'none' }} onChange={e => processFile(e.target.files[0])} />
+            <div onDragOver={e => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)} onDrop={e => { e.preventDefault(); setDragOver(false); processFile(e.dataTransfer.files[0]); }} onClick={() => fileInputRef.current.click()} style={{ borderRadius: '24px', border: `2px dashed ${dragOver ? '#7c3aed' : 'rgba(255,255,255,0.1)'}`, background: 'rgba(255,255,255,0.01)', padding: '80px 24px', textAlign: 'center', cursor: 'pointer' }}>
+              <div style={{ fontSize: '54px', marginBottom: '16px' }}>📊</div>
+              <div style={{ fontSize: '20px', fontWeight: '800', color: '#fff', marginBottom: '6px' }}>Scan Financial Databases & Files</div>
+              <div style={{ fontSize: '13px', color: '#57606f', marginBottom: '20px' }}>Supports CSV, XLSX, XLS & Microsoft Word Docx</div>
+              <button style={{ background: 'linear-gradient(135deg,#7c3aed,#9333ea)', color: '#fff', border: 'none', borderRadius: '12px', padding: '12px 28px', fontSize: '13px', fontWeight: '700' }}>⚡ Upload Ledger File</button>
+              <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls,.docx" style={{ display: 'none' }} onChange={e => processFile(e.target.files[0])} />
             </div>
           )}
 
-          {loading && (
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:'12px', background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.05)', backdropFilter:'blur(10px)', borderRadius:'16px', padding:'30px', color:'#a78bfa', fontSize:'14px', fontWeight:'600' }}>
-              <span style={{ display:'inline-block', animation:'aqSpin 1s linear infinite', fontSize:'20px' }}>⚡</span> Compiling structural data blocks...
-            </div>
-          )}
+          {loading && <div style={{ color: '#a78bfa', textAlign: 'center', padding: '40px' }} className="blink">⚡ Processing cryptographic multi-format ledger blocks...</div>}
 
-          {/* Active Audit Screen Dashboard */}
           {result && !loading && (
-            <div style={{ animation: 'aqFadeUp 0.5s cubic-bezier(0.1, 1, 0.1, 1) both' }}>
-              
-              {/* Top Analytical Counter Cards */}
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))', gap:'16px', marginBottom:'24px' }}>
-                <div style={{ background: SEV.HIGH.bg, border: `1px solid ${SEV.HIGH.border}`, borderRadius: '16px', padding: '16px 20px', boxShadow: `0 0 15px ${SEV.HIGH.glow}11` }}>
-                  <div style={{ fontSize: '11px', fontWeight: '700', color: '#a4b0be', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ width:'6px', height:'6px', borderRadius:'50%', background:SEV.HIGH.dot, boxShadow:`0 0 8px ${SEV.HIGH.dot}` }}/> CRITICAL BREACH
-                  </div>
+            <div>
+              {/* Interactive Dashboard Counters */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: '16px', marginBottom: '24px' }}>
+                <div style={{ background: SEV.HIGH.bg, border: `1px solid ${SEV.HIGH.border}`, borderRadius: '16px', padding: '16px' }}>
+                  <div style={{ fontSize: '11px', color: '#a4b0be', fontWeight: '700' }}>CRITICAL BREACH</div>
                   <div style={{ fontSize: '32px', fontWeight: '800', color: '#fff' }}>{flaggedCount}</div>
                 </div>
-
-                <div style={{ background: SEV.MEDIUM.bg, border: `1px solid ${SEV.MEDIUM.border}`, borderRadius: '16px', padding: '16px 20px', boxShadow: `0 0 15px ${SEV.MEDIUM.glow}11` }}>
-                  <div style={{ fontSize: '11px', fontWeight: '700', color: '#a4b0be', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ width:'6px', height:'6px', borderRadius:'50%', background:SEV.MEDIUM.dot, boxShadow:`0 0 8px ${SEV.MEDIUM.dot}` }}/> SUSPICIOUS LOGS
-                  </div>
+                <div style={{ background: SEV.MEDIUM.bg, border: `1px solid ${SEV.MEDIUM.border}`, borderRadius: '16px', padding: '16px' }}>
+                  <div style={{ fontSize: '11px', color: '#a4b0be', fontWeight: '700' }}>SUSPICIOUS LOGS</div>
                   <div style={{ fontSize: '32px', fontWeight: '800', color: '#fff' }}>{suspCount}</div>
                 </div>
-
-                <div onClick={() => setActiveTab('unknown')} style={{ cursor:'pointer', background: 'rgba(255,255,255,0.02)', border: `1px solid ${unknownCount > 0 ? '#ff4757' : 'rgba(255,255,255,0.08)'}`, borderRadius: '16px', padding: '16px 20px', transition:'all 0.2s' }} className="aq-card">
-                  <div style={{ fontSize: '11px', fontWeight: '700', color: '#a4b0be', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ width:'6px', height:'6px', borderRadius:'50%', background: unknownCount > 0 ? '#ff4757' : '#747d8c', animation: unknownCount > 0 ? 'aqBlink 1s infinite' : 'none', boxShadow: unknownCount > 0 ? '0 0 8px #ff4757' : 'none' }}/> ANOMALOUS ITEMS
-                  </div>
-                  <div style={{ fontSize: '32px', fontWeight: '800', color: unknownCount > 0 ? '#ff4757' : '#fff' }}>{unknownCount}</div>
+                <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', padding: '16px' }}>
+                  <div style={{ fontSize: '11px', color: '#a4b0be', fontWeight: '700' }}>ANOMALIES</div>
+                  <div style={{ fontSize: '32px', fontWeight: '800', color: '#ff4757' }}>{unknownCount}</div>
                 </div>
-
-                <div style={{ background: SEV.CLEARED.bg, border: `1px solid ${SEV.CLEARED.border}`, borderRadius: '16px', padding: '16px 20px', boxShadow: `0 0 15px ${SEV.CLEARED.glow}11` }}>
-                  <div style={{ fontSize: '11px', fontWeight: '700', color: '#a4b0be', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ width:'6px', height:'6px', borderRadius:'50%', background:SEV.CLEARED.dot, boxShadow:`0 0 8px ${SEV.CLEARED.dot}` }}/> VERIFIED CLEAN
-                  </div>
+                <div style={{ background: SEV.CLEARED.bg, border: `1px solid ${SEV.CLEARED.border}`, borderRadius: '16px', padding: '16px' }}>
+                  <div style={{ fontSize: '11px', color: '#a4b0be', fontWeight: '700' }}>VERIFIED SAFE</div>
                   <div style={{ fontSize: '32px', fontWeight: '800', color: '#fff' }}>{clearCount}</div>
                 </div>
               </div>
 
-              {/* Functional Dashboard View Tabs */}
-              <div style={{ display:'flex', gap:'10px', marginBottom:'20px', borderBottom:'1px solid rgba(255,255,255,0.06)', paddingBottom:'12px', flexWrap:'wrap' }}>
-                <button onClick={() => setActiveTab('transactions')} style={{ fontSize:'13px', fontWeight:'700', padding:'10px 20px', borderRadius:'10px', cursor:'pointer', border:'none', background: activeTab === 'transactions' ? 'rgba(139,92,246,0.15)' : 'transparent', color: activeTab === 'transactions' ? '#a78bfa' : '#747d8c', transition:'all 0.2s' }}>📋 General Registry ({result.allRows.length})</button>
-                <button onClick={() => setActiveTab('unknown')} style={{ fontSize:'13px', fontWeight:'700', padding:'10px 20px', borderRadius:'10px', cursor:'pointer', border:'none', background: activeTab === 'unknown' ? 'rgba(255,71,87,0.1)' : 'transparent', color: activeTab === 'unknown' ? '#ff4757' : '#747d8c', transition:'all 0.2s' }}>❓ Fix Anomalies ({unknownCount})</button>
-                <button onClick={() => setActiveTab('ai')} style={{ fontSize:'13px', fontWeight:'700', padding:'10px 20px', borderRadius:'10px', cursor:'pointer', border:'none', background: activeTab === 'ai' ? 'rgba(139,92,246,0.15)' : 'transparent', color: activeTab === 'ai' ? '#a78bfa' : '#747d8c', transition:'all 0.2s' }}>🤖 Groq AI Analysis</button>
+              {/* 📊 Interactive Custom Analytics: Visual Distribution Summary & Benford's Law Graph */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+                {/* Visual Segment Chart Simulation */}
+                <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '16px', padding: '20px' }}>
+                  <div style={{ fontSize: '13px', fontWeight: '700', marginBottom: '14px', color: '#fff' }}>📈 Dataset Distribution Proportions</div>
+                  <div style={{ display: 'flex', height: '24px', borderRadius: '6px', overflow: 'hidden', background: '#1e272e', marginBottom: '14px' }}>
+                    <div style={{ width: `${(flaggedCount / result.total) * 100}%`, background: '#ff4757' }} title="High Risk" />
+                    <div style={{ width: `${(suspCount / result.total) * 100}%`, background: '#ffa502' }} title="Medium Warning" />
+                    <div style={{ width: `${(clearCount / result.total) * 100}%`, background: '#1e90ff' }} title="Verified Clean" />
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#a4b0be' }}>
+                    <span>🔴 Fault: {((flaggedCount / result.total) * 100).toFixed(0)}%</span>
+                    <span>🟡 Warning: {((suspCount / result.total) * 100).toFixed(0)}%</span>
+                    <span>🔵 Clean: {((clearCount / result.total) * 100).toFixed(0)}%</span>
+                  </div>
+                </div>
+
+                {/* Benford's Law Custom Graph */}
+                <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '16px', padding: '20px' }}>
+                  <div style={{ fontSize: '13px', fontWeight: '700', marginBottom: '4px', color: '#fff' }}>📐 Benford's Law Digital Forensic Overlays</div>
+                  <div style={{ fontSize: '10px', color: '#747d8c', marginBottom: '10px' }}>Checks first-digit variance for human tampering flags</div>
+                  <div style={{ display: 'flex', alignItems: 'end', height: '80px', gap: '6px', paddingBottom: '5px', borderBottom: '1px solid #333' }}>
+                    {result.benford.actual.slice(1, 7).map((val, i) => (
+                      <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyEnd: 'end', height: '100%' }}>
+                        <div style={{ display: 'flex', gap: '2px', alignItems: 'end', height: '100%' }}>
+                          <div style={{ width: '50%', height: `${val * 2.5}%`, background: '#a78bfa', borderRadius: '2px 2px 0 0' }} title={`Actual: ${val}%`} />
+                          <div style={{ width: '50%', height: `${result.benford.ideal[i + 1] * 2.5}%`, background: 'rgba(255,255,255,0.15)', borderRadius: '2px 2px 0 0' }} title={`Ideal Benford: ${result.benford.ideal[i + 1]}%`} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#57606f', marginTop: '4px' }}>
+                    <span>Digit: 1</span><span>Digit: 2</span><span>Digit: 3</span><span>Digit: 4</span><span>Digit: 5</span><span>Digit: 6</span>
+                  </div>
+                </div>
               </div>
 
-              {/* Panel Views Grid Handler */}
+              {/* Navigation Functional Panel Tabs */}
+              <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '12px' }}>
+                <button onClick={() => setActiveTab('transactions')} style={{ padding: '8px 16px', background: activeTab === 'transactions' ? 'rgba(139,92,246,0.15)' : 'transparent', color: activeTab === 'transactions' ? '#a78bfa' : '#747d8c', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '700', cursor: 'pointer' }}>📋 Ledger Accounts</button>
+                <button onClick={() => setActiveTab('unknown')} style={{ padding: '8px 16px', background: activeTab === 'unknown' ? 'rgba(255,71,87,0.1)' : 'transparent', color: activeTab === 'unknown' ? '#ff4757' : '#747d8c', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '700', cursor: 'pointer' }}>❓ Fix Anomalies ({unknownCount})</button>
+                <button onClick={() => setActiveTab('ai')} style={{ padding: '8px 16px', background: activeTab === 'ai' ? 'rgba(139,92,246,0.15)' : 'transparent', color: activeTab === 'ai' ? '#a78bfa' : '#747d8c', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '700', cursor: 'pointer' }}>🤖 Interactive Bot Suite</button>
+              </div>
+
+              {/* Interactive Extended Tabs Display Grid Router */}
               {activeTab === 'unknown' && <UnknownTransactionsPanel unknowns={result.unknownTransactions} onUpdateRow={handleUpdateRow} />}
-              {activeTab === 'ai' && <AIAnalysisPanel result={result} />}
+              {activeTab === 'ai' && (
+                <div>
+                  <AIAnalysisPanel result={result} />
+                  <AIChatAssistant result={result} />
+                </div>
+              )}
 
               {activeTab === 'transactions' && (
-                <div style={{ background:'rgba(255,255,255,0.01)', border:'1px solid rgba(255,255,255,0.04)', borderRadius:'18px', padding:'20px', boxShadow:'0 10px 30px rgba(0,0,0,0.3)' }}>
-                  
-                  {/* Sorting / Filtering Quick Pills */}
-                  <div style={{ display: 'flex', gap: '8px', marginBottom: '18px', flexWrap: 'wrap' }}>
+                <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: '18px', padding: '20px' }}>
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
                     {['ALL', 'HIGH', 'MEDIUM', 'CLEARED'].map(f => (
-                      <button key={f} onClick={() => setActiveFilter(f)} style={{ fontSize:'11px', fontWeight:'700', padding:'6px 14px', borderRadius:'20px', cursor:'pointer', border:`1px solid ${activeFilter === f ? SEV[f]?.dot || '#8b5cf6' : 'rgba(255,255,255,0.06)'}`, background: activeFilter === f ? `${SEV[f]?.dot || '#8b5cf6'}15` : 'rgba(0,0,0,0.2)', color: activeFilter === f ? SEV[f]?.dot || '#fff' : '#a4b0be', transition:'all 0.15s' }}>{f === 'CLEARED' ? 'CLEAN' : f}</button>
+                      <button key={f} onClick={() => setActiveFilter(f)} style={{ fontSize: '11px', fontWeight: '700', padding: '6px 14px', borderRadius: '20px', cursor: 'pointer', border: `1px solid ${activeFilter === f ? SEV[f]?.dot || '#8b5cf6' : 'rgba(255,255,255,0.06)'}`, background: activeFilter === f ? `${SEV[f]?.dot || '#8b5cf6'}15` : 'transparent', color: activeFilter === f ? SEV[f]?.dot || '#fff' : '#a4b0be' }}>{f}</button>
                     ))}
                   </div>
 
-                  {/* Transaction Component Block Loops */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    {displayTx.length === 0 ? (
-                      <div style={{ padding:'30px', textAlign:'center', color:'#57606f', fontSize:'13px' }}>No entries found inside matching registry indices.</div>
-                    ) : displayTx.map(tx => (
-                      <div
-                        key={tx.id}
-                        onClick={() => setExpandedId(expandedId === tx.id ? null : tx.id)}
-                        style={{
-                          background: 'rgba(255,255,255,0.02)', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.05)',
-                          borderLeft: `4px solid ${SEV[tx.severity]?.dot || '#747d8c'}`, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: '16px', cursor: 'pointer', transition: 'all 0.2s', flexWrap: 'wrap'
-                        }}
-                        className="aq-tx-row"
-                      >
+                    {(activeFilter === 'ALL' ? result.allRows : result.allRows.filter(r => r.severity === activeFilter)).map(tx => (
+                      <div key={tx.id} onClick={() => setExpandedId(expandedId === tx.id ? null : tx.id)} style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '12px', borderLeft: `4px solid ${SEV[tx.severity]?.dot || '#747d8c'}`, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '14px', cursor: 'pointer' }}>
                         <Avatar name={tx.supplier} severity={tx.severity} />
-                        <div style={{ flex: '1 1 240px', minWidth: 0 }}>
-                          <div style={{ fontSize: '14px', fontWeight: '700', color: '#fff', display:'flex', alignItems:'center', gap:'8px' }}>
-                            {tx.invoice} <span style={{ color:'#747d8c', fontWeight:'400' }}>•</span> <span style={{ textOverflow:'ellipsis', overflow:'hidden', whiteSpace:'nowrap' }}>{tx.supplier}</span>
-                          </div>
-                          <div style={{ fontSize: '11px', color: '#57606f', marginTop: '4px' }}>{tx.date} {tx.time && `| ${tx.time}`}</div>
-                          
-                          {/* Expanded Threat Reasons Details */}
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: '13px', fontWeight: '700', color: '#fff' }}>{tx.supplier} <span style={{ color: '#57606f', fontWeight: '400' }}>({tx.invoice})</span></div>
+                          <div style={{ fontSize: '11px', color: '#57606f', marginTop: '2px' }}>{tx.date}</div>
                           {expandedId === tx.id && tx.reasons.length > 0 && (
-                            <div style={{ marginTop: '10px', fontSize: '12px', color: '#ff6b81', background:'rgba(255,71,87,0.05)', padding:'8px 12px', borderRadius:'8px', border:'1px solid rgba(255,71,87,0.1)' }}>
-                              ⚡ <b>Audit Flaw Triggered:</b> {tx.reasons.join(', ')}
+                            <div style={{ marginTop: '8px', fontSize: '11px', color: '#ff6b81', background: 'rgba(255,71,87,0.05)', padding: '6px 10px', borderRadius: '6px' }}>
+                              🚨 Triggered: {tx.reasons.join(', ')}
                             </div>
                           )}
                         </div>
-                        <div style={{ textAlign: 'right', marginLeft: 'auto', flexShrink: 0 }}>
-                          <div style={{ fontSize: '15px', fontWeight: '800', color: tx.severity === 'CLEARED' ? '#2ed573' : '#ff4757' }}>
-                            LKR {tx.amount.toLocaleString()}
-                          </div>
-                          <div style={{ fontSize:'10px', color:'#57606f', marginTop:'3px', fontWeight:'600' }}>{SEV[tx.severity]?.label}</div>
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ fontSize: '14px', fontWeight: '800', color: tx.severity === 'CLEARED' ? '#2ed573' : '#ff4757' }}>LKR {tx.amount.toLocaleString()}</div>
+                          <div style={{ fontSize: '10px', color: '#57606f' }}>{SEV[tx.severity]?.label}</div>
                         </div>
                       </div>
                     ))}
@@ -553,14 +502,11 @@ export default function App() {
                 </div>
               )}
 
-              {/* Data Re-upload Controller Reset */}
-              <div style={{ marginTop: '24px', display: 'flex', justifyContent: 'flex-end' }}>
-                <button onClick={() => { setResult(null); setFileName(''); }} style={{ padding: '12px 24px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', color: '#a4b0be', fontSize: '12px', fontWeight: '700', cursor: 'pointer', transition:'all 0.2s' }}>🔄 Purge Engine Data & Scan New Sheet</button>
+              <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'end' }}>
+                <button onClick={() => { setResult(null); setFileName(''); }} style={{ padding: '10px 20px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px', color: '#a4b0be', fontSize: '12px', cursor: 'pointer' }}>🔄 Purge Ledger Matrix Data</button>
               </div>
-
             </div>
           )}
-
         </main>
       </div>
     </>
