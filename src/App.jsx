@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { Upload, ShieldAlert, FileText, CheckCircle2, AlertTriangle, Info, RefreshCw } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import mammoth from 'mammoth';
 
@@ -9,7 +8,6 @@ export default function App() {
   const [alerts, setAlerts] = useState([]);
   const [fileName, setFileName] = useState('');
 
-  // ෆයිල් එක කියවන ප්‍රධාන Function එක
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -22,7 +20,6 @@ export default function App() {
       let rawTransactions = [];
 
       if (fileType === 'xlsx' || fileType === 'xls' || fileType === 'csv') {
-        // Excel සහ CSV කියවීම
         const data = await file.arrayBuffer();
         const workbook = XLSX.read(data);
         const sheetName = workbook.SheetNames[0];
@@ -30,13 +27,11 @@ export default function App() {
         rawTransactions = XLSX.utils.sheet_to_json(sheet);
       } 
       else if (fileType === 'docx') {
-        // Word File එක කියවා Text ලබාගැනීම
         const arrayBuffer = await file.arrayBuffer();
         const result = await mammoth.extractRawText({ arrayBuffer });
         rawTransactions = parseTextToRows(result.value);
       } 
       else if (fileType === 'pdf') {
-        // PDF File එක කියවා Text ලබාගැනීම
         const arrayBuffer = await file.arrayBuffer();
         const loadingTask = window.pdfjsLib.getDocument({ data: arrayBuffer });
         const pdf = await loadingTask.promise;
@@ -49,7 +44,7 @@ export default function App() {
         }
         rawTransactions = parseTextToRows(fullText);
       } else {
-        alert('Unsupported file format! Please upload CSV, Excel, Word or PDF.');
+        alert('Unsupported format! Use CSV, Excel, Word or PDF.');
         setLoading(false);
         return;
       }
@@ -57,27 +52,24 @@ export default function App() {
       runFraudDetection(rawTransactions);
     } catch (error) {
       console.error(error);
-      alert('Error parsing file. Ensure the structure is correct.');
+      alert('Error reading file. Please check format.');
     }
     setLoading(false);
   };
 
-  // PDF සහ Word වල තියෙන සාමාන්‍ය වචන පේළි ගනුදෙනු (Structured Rows) බවට පත් කිරීම
   const parseTextToRows = (text) => {
     const lines = text.split('\n');
     let rows = [];
-    
     lines.forEach(line => {
-      // Regular Expression මඟින් මුදල් ප්‍රමාණයන්, ඉන්වොයිසි සහ දින සොයාගැනීම
       const amountMatch = line.match(/\b\d{4,9}\b/); 
       const invMatch = line.match(/INV\d{3,6}/i);
       const unknownMatch = line.toLowerCase().includes('unknown');
       
       if (amountMatch || invMatch || unknownMatch) {
         rows.push({
-          Date: new Date().toISOString().split('T')[0], // Default date
+          Date: new Date().toISOString().split('T')[0],
           Amount: amountMatch ? parseFloat(amountMatch[0]) : 15000,
-          Supplier: unknownMatch ? 'Unknown' : (line.match(/[A-Z][a-z]+ Store|[A-Z][a-z]+ Mart/ )?.[0] || 'Dynamic Supplier'),
+          Supplier: unknownMatch ? 'Unknown' : (line.match(/[A-Z][a-z]+ Store|[A-Z][a-z]+ Mart|[A-Z][a-z]+ Tech/)?.[0] || 'Dynamic Supplier'),
           Invoice_No: invMatch ? invMatch[0].toUpperCase() : 'INV' + Math.floor(100 + Math.random() * 900)
         });
       }
@@ -85,7 +77,6 @@ export default function App() {
     return rows;
   };
 
-  // වංචා සෙවීමේ AI නීති මාලාව (Fraud Logic)
   const runFraudDetection = (data) => {
     let flaggedItems = [];
     let invoiceCounts = {};
@@ -101,8 +92,8 @@ export default function App() {
       const amt = parseFloat(row.Amount);
 
       if (amt > 500000) reasons.push("Large Transaction (>500k)");
-      if (row.Supplier && row.Supplier.toString().toLowerCase().includes('unknown')) reasons.push("Unknown/Unregistered Supplier");
-      if (row.Invoice_No && invoiceCounts[row.Invoice_No] > 1) reasons.push("Duplicate Invoice Number");
+      if (row.Supplier && row.Supplier.toString().toLowerCase().includes('unknown')) reasons.push("Unknown Supplier");
+      if (row.Invoice_No && invoiceCounts[row.Invoice_No] > 1) reasons.push("Duplicate Invoice");
 
       if (reasons.length > 0) {
         flaggedItems.push({
@@ -121,138 +112,143 @@ export default function App() {
     setAlerts(flaggedItems);
   };
 
+  // Inline CSS Styles for absolute independence from internet speed / Tailwind failures
+  const styles = {
+    container: { backgroundColor: '#0b1329', color: '#f8fafc', fontFamily: 'system-ui, sans-serif', minHeight: '100vh', padding: '0 0 40px 0' },
+    header: { borderBottom: '1px solid #1e293b', backgroundColor: '#111c44', padding: '15px 30px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+    brand: { display: 'flex', alignItems: 'center', gap: '12px' },
+    logo: { backgroundColor: '#3b82f6', width: '36px', height: '36px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyCwontent: 'center', fontWeight: 'bold', fontSize: '18px' },
+    title: { margin: 0, fontSize: '18px', fontWeight: '700', color: '#ffffff' },
+    subtitle: { margin: 0, fontSize: '11px', color: '#94a3b8' },
+    badge: { backgroundColor: 'rgba(59, 130, 246, 0.1)', color: '#60a5fa', fontSize: '11px', fontWeight: '600', padding: '4px 12px', borderRadius: '20px', border: '1px solid rgba(59, 130, 246, 0.2)' },
+    main: { maxWidth: '1200px', margin: '0 auto', padding: '30px 20px' },
+    uploadZone: { backgroundColor: '#111c44', border: '2px dashed #334155', borderRadius: '16px', padding: '40px', textAlign: 'center', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.3)', marginBottom: '30px' },
+    uploadLabel: { cursor: 'pointer', display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: '10px' },
+    uploadIcon: { fontSize: '40px', marginBottom: '5px' },
+    grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', marginBottom: '35px' },
+    card: { backgroundColor: '#111c44', border: '1px solid #1e293b', borderRadius: '12px', padding: '20px', position: 'relative' },
+    cardLabel: { fontSize: '11px', fontWeight: '600', color: '#94a3b8', textTransform: 'uppercase', tracking: '1px' },
+    cardVal: { fontSize: '32px', fontWeight: '700', marginTop: '5px', color: '#ffffff' },
+    dashboardLayout: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px' },
+    panel: { backgroundColor: '#111c44', border: '1px solid #1e293b', borderRadius: '12px', padding: '20px' },
+    panelTitle: { fontSize: '15px', fontWeight: '700', marginBottom: '15px', color: '#f1f5f9', display: 'flex', alignItems: 'center', gap: '8px' },
+    alertBox: { backgroundColor: '#0b1329', borderLeft: '4px solid #ef4444', borderRadius: '0 8px 8px 0', padding: '12px 15px', fontSize: '12px', marginBottom: '12px' },
+    table: { width: '100%', borderCollapse: 'collapse', fontSize: '12px', textAlign: 'left' },
+    th: { backgroundColor: '#0b1329', padding: '10px 12px', color: '#94a3b8', textTransform: 'uppercase', fontSize: '10px', fontWeight: '600' },
+    td: { padding: '12px', borderBottom: '1px solid #1e293b', color: '#cbd5e1' }
+  };
+
   return (
-    <div class="min-h-screen bg-slate-950 text-slate-100 font-sans">
-      {/* Header */}
-      <header class="border-b border-slate-800 bg-slate-900/50 backdrop-blur-md sticky top-0 z-50">
-        <div class="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
-          <div class="flex items-center gap-3">
-            <div class="p-2 bg-blue-600 rounded-lg text-white">
-              <ShieldAlert size={24} />
-            </div>
-            <div>
-              <h1 class="text-xl font-bold tracking-tight">NextGen Audit Firm</h1>
-              <p class="text-xs text-slate-400">Advanced Omni-Format Fraud Detection Engine</p>
-            </div>
+    <div style={styles.container}>
+      {/* Dynamic Header */}
+      <header style={styles.header}>
+        <div style={styles.brand}>
+          <div style={styles.logo}>🔍</div>
+          <div>
+            <h1 style={styles.title}>NextGen Audit Firm</h1>
+            <p style={styles.subtitle}>Advanced Omni-Format Fraud Detection Engine</p>
           </div>
-          <span class="bg-blue-500/10 text-blue-400 text-xs font-medium px-3 py-1 rounded-full border border-blue-500/20">V2.0 React Core</span>
         </div>
+        <span style={styles.badge}>Pro Audit Core v2.0</span>
       </header>
 
-      <main class="max-w-7xl mx-auto px-6 py-10 space-y-8">
-        
-        {/* Upload Zone */}
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center shadow-xl">
-          <h2 class="text-2xl font-semibold mb-2">Cross-Platform Report Analyzer</h2>
-          <p class="text-sm text-slate-400 max-w-xl mx-auto mb-6">
-            Upload any Monthly Statement, Invoice list or Financial Ledger in **CSV, Excel, Word (Docx)** or **PDF** format.
-          </p>
-
-          <div class="max-w-md mx-auto">
-            <label class="flex flex-col items-center justify-center border-2 border-slate-700 border-dashed rounded-xl p-6 cursor-pointer hover:border-blue-500 hover:bg-slate-800/40 transition group">
-              <Upload size={36} class="text-slate-500 group-hover:text-blue-400 mb-3 transition" />
-              <span class="text-sm font-medium text-slate-300">Choose file to scan</span>
-              <span class="text-xs text-slate-500 mt-1">PDF, DOCX, XLSX, XLS, CSV up to 10MB</span>
-              <input type="file" accept=".csv,.xlsx,.xls,.docx,.pdf" class="hidden" onChange={handleFileUpload} />
-            </label>
-          </div>
+      <main style={styles.main}>
+        {/* Drop Zone */}
+        <div style={styles.uploadZone}>
+          <h2 style={{fontSize: '22px', fontWeight: '600', margin: '0 0 8px 0'}}>Cross-Platform Statement Analyzer</h2>
+          <p style={{fontSize: '13px', color: '#94a3b8', margin: '0 0 25px 0'}}>Upload any corporate statement or ledger in <b>PDF, DOCX, XLSX</b>, or <b>CSV</b> format to perform instant forensic auditing.</p>
+          
+          <label style={styles.uploadLabel}>
+            <div style={styles.uploadIcon}>📥</div>
+            <span style={{fontSize: '14px', fontWeight: '500', color: '#3b82f6'}}>Click to choose file for deep scan</span>
+            <span style={{fontSize: '11px', color: '#64748b'}}>Supports all popular document extensions</span>
+            <input type="file" accept=".csv,.xlsx,.xls,.docx,.pdf" style={{display: 'none'}} onChange={handleFileUpload} />
+          </label>
 
           {fileName && (
-            <div class="mt-4 inline-flex items-center gap-2 bg-slate-800 px-4 py-1.5 rounded-full text-xs text-slate-300 border border-slate-700">
-              <FileText size={14} class="text-blue-400" /> {fileName}
+            <div style={{marginTop: '15px', display: 'inline-block', backgroundColor: '#1e293b', padding: '5px 15px', borderRadius: '20px', fontSize: '12px', color: '#60a5fa', border: '1px solid #334155'}}>
+              📄 Connected: {fileName}
             </div>
           )}
         </div>
 
         {loading && (
-          <div class="flex justify-center items-center gap-2 text-blue-400 font-medium py-10">
-            <RefreshCw size={20} class="animate-spin" /> Deep Scanning Documents...
+          <div style={{textAlign: 'center', color: '#3b82f6', fontSize: '14px', fontWeight: '500', padding: '20px'}}>
+            ⏳ Decoding Document Streams & Structuring Data Layers...
           </div>
         )}
 
-        {/* Dashboard Analytics */}
+        {/* Dashboard Panels */}
         {!loading && stats.total > 0 && (
-          <div class="space-y-8 animate-fadeIn">
-            {/* Cards Grid */}
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div class="bg-slate-900 border border-slate-800 p-6 rounded-xl shadow-md">
-                <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Processed Items</span>
-                <div class="text-3xl font-bold mt-2 text-white">{stats.total}</div>
-                <p class="text-xs text-slate-500 mt-1">Total transactions extracted</p>
+          <div>
+            {/* KPI Cards Grid */}
+            <div style={styles.grid}>
+              <div style={styles.card}>
+                <div style={styles.cardLabel}>Processed Line Items</div>
+                <div style={styles.cardVal}>{stats.total}</div>
               </div>
-
-              <div class="bg-slate-900 border border-slate-800 p-6 rounded-xl shadow-md">
-                <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Flagged Irregularities</span>
-                <div class="text-3xl font-bold mt-2 text-red-500">{stats.flagged}</div>
-                <p class="text-xs text-slate-500 mt-1">Schedules matching risk rules</p>
+              <div style={styles.card}>
+                <div style={styles.cardLabel}>Flagged Irregularities</div>
+                <div style={{...styles.cardVal, color: '#ef4444'}}>{stats.flagged}</div>
               </div>
-
-              <div class="bg-slate-900 border border-slate-800 p-6 rounded-xl shadow-md">
-                <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Risk Index Status</span>
-                <div class={`text-lg font-bold mt-3 px-3 py-1 inline-block rounded-full ${
-                  stats.risk === 'Low' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
-                  stats.risk === 'Medium' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
-                  'bg-red-500/10 text-red-400 border border-red-500/20'
-                }`}>{stats.risk} Risk Level</div>
-                <p class="text-xs text-slate-500 mt-2">Overall audit automation logic score</p>
+              <div style={styles.card}>
+                <div style={styles.cardLabel}>Risk Level Assessment</div>
+                <div style={{
+                  fontSize: '14px', fontWeight: '700', marginTop: '15px', padding: '6px 14px', borderRadius: '6px', display: 'inline-block',
+                  backgroundColor: stats.risk === 'Low' ? 'rgba(16, 185, 129, 0.1)' : stats.risk === 'Medium' ? 'rgba(245, 158, 11, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                  color: stats.risk === 'Low' ? '#10b981' : stats.risk === 'Medium' ? '#f59e0b' : '#ef4444',
+                  border: stats.risk === 'Low' ? '1px solid #10b981' : stats.risk === 'Medium' ? '1px solid #f59e0b' : '1px solid #ef4444'
+                }}>{stats.risk} Risk Profile</div>
               </div>
             </div>
 
-            {/* Core Results Section */}
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Split Screen Insights */}
+            <div style={styles.dashboardLayout}>
               
-              {/* Left Column: AI Threat Feed */}
-              <div class="bg-slate-900 border border-slate-800 rounded-xl p-6">
-                <h3 class="text-md font-bold mb-4 flex items-center gap-2 text-red-400">
-                  <AlertTriangle size={18} /> Automated AI Threat Feed
-                </h3>
-                
-                <div class="space-y-3 max-h-[400px] overflow-y-auto pr-2">
+              {/* AI Threat Alerts Feed */}
+              <div style={styles.panel}>
+                <div style={styles.panelTitle}>🚨 Automated Forensic Threat Feed</div>
+                <div style={{maxHeight: '380px', overflowY: 'auto'}}>
                   {alerts.length === 0 ? (
-                    <div class="flex items-center gap-2 text-emerald-400 bg-emerald-500/5 p-4 rounded-lg border border-emerald-500/10 text-sm">
-                      <CheckCircle2 size={16} /> Compliance Check Passed. No suspicious entries discovered.
+                    <div style={{padding: '15px', backgroundColor: 'rgba(16, 185, 129, 0.05)', color: '#10b981', borderRadius: '8px', border: '1px solid rgba(16, 185, 129, 0.1)', fontSize: '13px'}}>
+                      ✅ Document clean. No anomalous indicators detected inside this file.
                     </div>
                   ) : (
                     alerts.map(alert => (
-                      <div key={alert.id} class="p-4 bg-slate-950 border-l-4 border-red-500 rounded-r-lg text-xs space-y-1">
-                        <div class="flex justify-between font-semibold">
-                          <span class="text-slate-200">Supplier: {alert.supplier}</span>
-                          <span class="text-red-400">LKR {alert.amount.toLocaleString()}</span>
+                      <div key={alert.id} style={styles.alertBox}>
+                        <div style={{display: 'flex', justifyContent: 'space-between', fontWeight: '600', marginBottom: '4px'}}>
+                          <span style={{color: '#f1f5f9'}}>{alert.supplier}</span>
+                          <span style={{color: '#ef4444'}}>Rs. {alert.amount.toLocaleString()}</span>
                         </div>
-                        <p class="text-slate-400">Invoice Ref: <span class="text-blue-400 font-mono">{alert.invoice}</span></p>
-                        <div class="text-[10px] text-amber-400 font-medium pt-1">Trigger: {alert.reason}</div>
+                        <div style={{color: '#94a3b8', fontSize: '11px'}}>Invoice Ref: <span style={{color: '#60a5fa', fontFamily: 'monospace'}}>{alert.invoice}</span></div>
+                        <div style={{color: '#f59e0b', fontSize: '11px', marginTop: '4px', fontWeight: '500'}}>Reason: {alert.reason}</div>
                       </div>
                     ))
                   )}
                 </div>
               </div>
 
-              {/* Right Column: Full Audit Table View */}
-              <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-                <div class="px-6 py-4 border-b border-slate-800 bg-slate-900/50 flex justify-between items-center">
-                  <h3 class="text-sm font-bold text-slate-200">Flagged Ledgers Breakdowns</h3>
-                  <span class="text-[10px] text-slate-500 flex items-center gap-1"><Info size={12}/> Interactive Sheet</span>
-                </div>
-                <div class="overflow-x-auto max-h-[355px]">
-                  <table class="w-full text-xs text-left text-slate-400">
-                    <thead class="bg-slate-950 text-slate-300 uppercase font-mono text-[10px] sticky top-0">
+              {/* Ledger Sheet Breakdown */}
+              <div style={{...styles.panel, padding: '0', overflow: 'hidden'}}>
+                <div style={{...styles.panelTitle, padding: '20px 20px 10px 20px', margin: '0'}}>📋 Audit Ledger Records</div>
+                <div style={{maxHeight: '350px', overflowY: 'auto'}}>
+                  <table style={styles.table}>
+                    <thead>
                       <tr>
-                        <th class="px-4 py-3">Entity</th>
-                        <th class="px-4 py-3">Doc ID</th>
-                        <th class="px-4 py-3">Value</th>
-                        <th class="px-4 py-3">Flag Type</th>
+                        <th style={styles.th}>Entity</th>
+                        <th style={styles.th}>Doc ID</th>
+                        <th style={styles.th}>Value</th>
+                        <th style={styles.th}>Action</th>
                       </tr>
                     </thead>
                     <tbody>
                       {alerts.map(alert => (
-                        <tr key={alert.id} class="border-b border-slate-800/60 hover:bg-slate-800/30 transition">
-                          <td class="px-4 py-3 font-medium text-slate-200">{alert.supplier}</td>
-                          <td class="px-4 py-3 font-mono text-blue-400">{alert.invoice}</td>
-                          <td class="px-4 py-3 text-white font-semibold">LKR {alert.amount.toLocaleString()}</td>
-                          <td class="px-4 py-3">
-                            <span class="bg-red-500/10 text-red-400 border border-red-500/20 px-2 py-0.5 rounded text-[10px]">
-                              Review Required
-                            </span>
+                        <tr key={alert.id} style={{backgroundColor: 'rgba(255,255,255,0.01)'}}>
+                          <td style={styles.td}>{alert.supplier}</td>
+                          <td style={{...styles.td, color: '#60a5fa', fontFamily: 'monospace'}}>{alert.invoice}</td>
+                          <td style={{...styles.td, fontWeight: '600', color: '#ffffff'}}>Rs. {alert.amount.toLocaleString()}</td>
+                          <td style={styles.td}>
+                            <span style={{backgroundColor: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', padding: '2px 8px', borderRadius: '4px', fontSize: '10px', border: '1px solid rgba(239, 68, 68, 0.2)'}}>Review</span>
                           </td>
                         </tr>
                       ))}
