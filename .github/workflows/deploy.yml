@@ -1,8 +1,8 @@
-name: Deploy Review App to GitHub Pages
+name: Deploy App to GitHub Pages
 
 on:
   push:
-    branches: ["main"] # ඔයාගේ main branch එකට code දාපු ගමන් run වෙනවා
+    branches: ["main"]
 
 permissions:
   contents: read
@@ -17,14 +17,14 @@ jobs:
   deploy:
     environment:
       name: github-pages
-      url: ${{ steps: 'deployment'.outputs.'page_url' }}
+      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         
       - name: Set up Node
-        uses: actions/node-versions@v4
+        uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: 'npm'
