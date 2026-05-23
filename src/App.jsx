@@ -44,7 +44,7 @@ export default function App() {
         }
         rawTransactions = parseTextToRows(fullText);
       } else {
-        alert('Unsupported format! Use CSV, Excel, Word or PDF.');
+        alert('Format Unsupported! Use CSV, Excel, Word or PDF.');
         setLoading(false);
         return;
       }
@@ -52,7 +52,7 @@ export default function App() {
       runFraudDetection(rawTransactions);
     } catch (error) {
       console.error(error);
-      alert('Error reading file. Please check format.');
+      alert('Error reading document structure.');
     }
     setLoading(false);
   };
@@ -93,7 +93,7 @@ export default function App() {
 
       if (amt > 500000) reasons.push("Large Transaction (>500k)");
       if (row.Supplier && row.Supplier.toString().toLowerCase().includes('unknown')) reasons.push("Unknown Supplier");
-      if (row.Invoice_No && invoiceCounts[row.Invoice_No] > 1) reasons.push("Duplicate Invoice");
+      if (row.Invoice_No && invoiceCounts[row.Invoice_No] > 1) reasons.push("Duplicate Invoice Ref");
 
       if (reasons.length > 0) {
         flaggedItems.push({
@@ -112,143 +112,158 @@ export default function App() {
     setAlerts(flaggedItems);
   };
 
-  // Inline CSS Styles for absolute independence from internet speed / Tailwind failures
+  // 100% Inline CSS Responsive Grid Architecture (No external framework dependencies)
   const styles = {
-    container: { backgroundColor: '#0b1329', color: '#f8fafc', fontFamily: 'system-ui, sans-serif', minHeight: '100vh', padding: '0 0 40px 0' },
-    header: { borderBottom: '1px solid #1e293b', backgroundColor: '#111c44', padding: '15px 30px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-    brand: { display: 'flex', alignItems: 'center', gap: '12px' },
-    logo: { backgroundColor: '#3b82f6', width: '36px', height: '36px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyCwontent: 'center', fontWeight: 'bold', fontSize: '18px' },
-    title: { margin: 0, fontSize: '18px', fontWeight: '700', color: '#ffffff' },
-    subtitle: { margin: 0, fontSize: '11px', color: '#94a3b8' },
-    badge: { backgroundColor: 'rgba(59, 130, 246, 0.1)', color: '#60a5fa', fontSize: '11px', fontWeight: '600', padding: '4px 12px', borderRadius: '20px', border: '1px solid rgba(59, 130, 246, 0.2)' },
-    main: { maxWidth: '1200px', margin: '0 auto', padding: '30px 20px' },
-    uploadZone: { backgroundColor: '#111c44', border: '2px dashed #334155', borderRadius: '16px', padding: '40px', textAlign: 'center', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.3)', marginBottom: '30px' },
-    uploadLabel: { cursor: 'pointer', display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: '10px' },
-    uploadIcon: { fontSize: '40px', marginBottom: '5px' },
-    grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', marginBottom: '35px' },
-    card: { backgroundColor: '#111c44', border: '1px solid #1e293b', borderRadius: '12px', padding: '20px', position: 'relative' },
-    cardLabel: { fontSize: '11px', fontWeight: '600', color: '#94a3b8', textTransform: 'uppercase', tracking: '1px' },
-    cardVal: { fontSize: '32px', fontWeight: '700', marginTop: '5px', color: '#ffffff' },
-    dashboardLayout: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px' },
-    panel: { backgroundColor: '#111c44', border: '1px solid #1e293b', borderRadius: '12px', padding: '20px' },
-    panelTitle: { fontSize: '15px', fontWeight: '700', marginBottom: '15px', color: '#f1f5f9', display: 'flex', alignItems: 'center', gap: '8px' },
-    alertBox: { backgroundColor: '#0b1329', borderLeft: '4px solid #ef4444', borderRadius: '0 8px 8px 0', padding: '12px 15px', fontSize: '12px', marginBottom: '12px' },
-    table: { width: '100%', borderCollapse: 'collapse', fontSize: '12px', textAlign: 'left' },
-    th: { backgroundColor: '#0b1329', padding: '10px 12px', color: '#94a3b8', textTransform: 'uppercase', fontSize: '10px', fontWeight: '600' },
-    td: { padding: '12px', borderBottom: '1px solid #1e293b', color: '#cbd5e1' }
+    container: { backgroundColor: '#030712', color: '#f3f4f6', fontFamily: '"SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', minHeight: '100vh', boxSizing: 'border-box' },
+    header: { borderBottom: '1px solid #1f2937', backgroundColor: '#0b0f19', padding: '20px 5%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 4px 20px rgba(0,0,0,0.4)' },
+    brand: { display: 'flex', alignItems: 'center', gap: '15px' },
+    logo: { backgroundColor: '#2563eb', width: '45px', height: '45px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px', boxShadow: '0 0 15px rgba(37,99,235,0.5)' },
+    title: { margin: 0, fontSize: '22px', fontWeight: '800', color: '#ffffff', letterSpacing: '-0.5px' },
+    subtitle: { margin: '2px 0 0 0', fontSize: '12px', color: '#9ca3af', tracking: '0.5px' },
+    badge: { background: 'linear-gradient(90deg, #1e40af, #2563eb)', color: '#ffffff', fontSize: '11px', fontWeight: '700', padding: '6px 16px', borderRadius: '30px', textTransform: 'uppercase', letterSpacing: '1px', boxShadow: '0 0 10px rgba(37,99,235,0.2)' },
+    main: { width: '90%', maxWidth: '1400px', margin: '0 auto', padding: '40px 0' },
+    uploadZone: { background: 'linear-gradient(145deg, #0f172a, #0b0f19)', border: '2px dashed #3b82f6', borderRadius: '24px', padding: '50px 30px', textAlign: 'center', boxShadow: '0 20px 40px rgba(0,0,0,0.5)', marginBottom: '40px', position: 'relative', overflow: 'hidden' },
+    uploadLabel: { cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' },
+    uploadIcon: { fontSize: '50px', filter: 'drop-shadow(0 0 10px rgba(59,130,246,0.5))', animation: 'pulse 2s infinite' },
+    grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '25px', marginBottom: '40px' },
+    card: { background: '#0f172a', border: '1px solid #1e2937', borderRadius: '18px', padding: '25px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)', transition: 'transform 0.3s' },
+    cardLabel: { fontSize: '12px', fontWeight: '600', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '1px' },
+    cardVal: { fontSize: '38px', fontWeight: '800', marginTop: '10px', color: '#ffffff' },
+    dashboardLayout: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))', gap: '30px' },
+    panel: { background: '#0f172a', border: '1px solid #1e2937', borderRadius: '20px', padding: '25px', boxShadow: '0 10px 30px rgba(0,0,0,0.3)' },
+    panelTitle: { fontSize: '16px', fontWeight: '700', marginBottom: '20px', color: '#ffffff', display: 'flex', alignItems: 'center', gap: '10px', borderBottom: '1px solid #1f2937', paddingBottom: '12px' },
+    alertBox: { background: '#070a13', borderLeft: '5px solid #ef4444', borderRadius: '8px', padding: '16px', fontSize: '13px', marginBottom: '15px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' },
+    tableContainer: { overflowX: 'auto', maxHeight: '400px' },
+    table: { width: '100%', borderCollapse: 'collapse', fontSize: '13px', textLeft: 'left' },
+    th: { backgroundColor: '#070a13', padding: '14px', color: '#9ca3af', textTransform: 'uppercase', fontSize: '11px', fontWeight: '700', letterSpacing: '0.5px', borderBottom: '2px solid #1f2937', sticky: 'top' },
+    td: { padding: '14px 12px', borderBottom: '1px solid #1f2937', color: '#e5e7eb', verticalAlign: 'middle' }
   };
 
   return (
     <div style={styles.container}>
-      {/* Dynamic Header */}
+      {/* Premium Navigation Header */}
       <header style={styles.header}>
         <div style={styles.brand}>
-          <div style={styles.logo}>🔍</div>
+          <div style={styles.logo}>🛡️</div>
           <div>
             <h1 style={styles.title}>NextGen Audit Firm</h1>
-            <p style={styles.subtitle}>Advanced Omni-Format Fraud Detection Engine</p>
+            <p style={styles.subtitle}>Forensic AI Fraud Detection Engine • Dashboard</p>
           </div>
         </div>
-        <span style={styles.badge}>Pro Audit Core v2.0</span>
+        <span style={styles.badge}>Security Status: Active</span>
       </header>
 
       <main style={styles.main}>
-        {/* Drop Zone */}
+        {/* Advanced Upload Module */}
         <div style={styles.uploadZone}>
-          <h2 style={{fontSize: '22px', fontWeight: '600', margin: '0 0 8px 0'}}>Cross-Platform Statement Analyzer</h2>
-          <p style={{fontSize: '13px', color: '#94a3b8', margin: '0 0 25px 0'}}>Upload any corporate statement or ledger in <b>PDF, DOCX, XLSX</b>, or <b>CSV</b> format to perform instant forensic auditing.</p>
+          <div style={{position: 'absolute', top: 0, left: 0, right: 0, height: '4px', background: 'linear-gradient(90deg, #3b82f6, #ef4444, #3b82f6)'}}></div>
+          <h2 style={{fontSize: '26px', fontWeight: '800', margin: '0 0 10px 0', letterSpacing: '-0.5px'}}>Cross-Platform Data Stream Analyzer</h2>
+          <p style={{fontSize: '14px', color: '#9ca3af', margin: '0 0 30px 0', maxWidth: '650px', marginLeft: 'auto', marginRight: 'auto', lineHeight: '1.5'}}>
+            Securely drop internal ledgers or monthly firm statements in <span style={{color: '#60a5fa', fontWeight: '600'}}>PDF, DOCX, XLSX</span>, or <span style={{color: '#60a5fa', fontWeight: '600'}}>CSV</span> format. The machine-learning engine will parse data fields natively.
+          </p>
           
           <label style={styles.uploadLabel}>
-            <div style={styles.uploadIcon}>📥</div>
-            <span style={{fontSize: '14px', fontWeight: '500', color: '#3b82f6'}}>Click to choose file for deep scan</span>
-            <span style={{fontSize: '11px', color: '#64748b'}}>Supports all popular document extensions</span>
+            <div style={styles.uploadIcon}>⚡</div>
+            <span style={{fontSize: '16px', fontWeight: '600', color: '#3b82f6'}}>Upload System Document</span>
+            <span style={{fontSize: '12px', color: '#6b7280'}}>Drag & Drop supported locally</span>
             <input type="file" accept=".csv,.xlsx,.xls,.docx,.pdf" style={{display: 'none'}} onChange={handleFileUpload} />
           </label>
 
           {fileName && (
-            <div style={{marginTop: '15px', display: 'inline-block', backgroundColor: '#1e293b', padding: '5px 15px', borderRadius: '20px', fontSize: '12px', color: '#60a5fa', border: '1px solid #334155'}}>
-              📄 Connected: {fileName}
+            <div style={{marginTop: '25px', display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'rgba(59,130,246,0.1)', padding: '8px 20px', borderRadius: '30px', fontSize: '13px', color: '#60a5fa', border: '1px solid rgba(59,130,246,0.3)', fontWeight: '600'}}>
+              <span>📊 Layer Loaded:</span> {fileName}
             </div>
           )}
         </div>
 
         {loading && (
-          <div style={{textAlign: 'center', color: '#3b82f6', fontSize: '14px', fontWeight: '500', padding: '20px'}}>
-            ⏳ Decoding Document Streams & Structuring Data Layers...
+          <div style={{textAlign: 'center', color: '#3b82f6', fontSize: '15px', fontWeight: '600', padding: '4px 0', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px'}}>
+            <span style={{fontSize: '20px', display: 'inline-block', animation: 'spin 1s linear infinite'}}>🔄</span> 
+            Executing Neural Matrix Over Ledger Blocks...
           </div>
         )}
 
-        {/* Dashboard Panels */}
+        {/* Analytics Operations View */}
         {!loading && stats.total > 0 && (
-          <div>
-            {/* KPI Cards Grid */}
+          <div style={{animation: 'fadeIn 0.5s ease-out'}}>
+            
+            {/* Core KPI Matrix Widgets */}
             <div style={styles.grid}>
               <div style={styles.card}>
-                <div style={styles.cardLabel}>Processed Line Items</div>
+                <div style={styles.cardLabel}>Analyzed Registry Count</div>
                 <div style={styles.cardVal}>{stats.total}</div>
+                <div style={{fontSize: '11px', color: '#6b7280', marginTop: '8px'}}>Total data arrays verified</div>
               </div>
               <div style={styles.card}>
-                <div style={styles.cardLabel}>Flagged Irregularities</div>
-                <div style={{...styles.cardVal, color: '#ef4444'}}>{stats.flagged}</div>
+                <div style={styles.cardLabel}>Flagged Threat Anomalies</div>
+                <div style={{...styles.cardVal, color: '#f87171', textShadow: '0 0 15px rgba(248,113,113,0.3)'}}>{stats.flagged}</div>
+                <div style={{fontSize: '11px', color: '#f87171', marginTop: '8px'}}>Violations against standard compliance</div>
               </div>
               <div style={styles.card}>
-                <div style={styles.cardLabel}>Risk Level Assessment</div>
+                <div style={styles.cardLabel}>Security Risk Assessment</div>
                 <div style={{
-                  fontSize: '14px', fontWeight: '700', marginTop: '15px', padding: '6px 14px', borderRadius: '6px', display: 'inline-block',
-                  backgroundColor: stats.risk === 'Low' ? 'rgba(16, 185, 129, 0.1)' : stats.risk === 'Medium' ? 'rgba(245, 158, 11, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                  color: stats.risk === 'Low' ? '#10b981' : stats.risk === 'Medium' ? '#f59e0b' : '#ef4444',
-                  border: stats.risk === 'Low' ? '1px solid #10b981' : stats.risk === 'Medium' ? '1px solid #f59e0b' : '1px solid #ef4444'
-                }}>{stats.risk} Risk Profile</div>
+                  fontSize: '13px', fontWeight: '800', marginTop: '18px', padding: '8px 16px', borderRadius: '8px', display: 'inline-block', textTransform: 'uppercase', letterSpacing: '0.5px',
+                  backgroundColor: stats.risk === 'Low' ? 'rgba(52, 211, 153, 0.1)' : stats.risk === 'Medium' ? 'rgba(251, 191, 36, 0.1)' : 'rgba(248, 113, 113, 0.1)',
+                  color: stats.risk === 'Low' ? '#34d399' : stats.risk === 'Medium' ? '#fbbf24' : '#f87171',
+                  border: stats.risk === 'Low' ? '1px solid rgba(52,211,153,0.3)' : stats.risk === 'Medium' ? '1px solid rgba(251,191,36,0.3)' : '1px solid rgba(248,113,113,0.3)',
+                  boxShadow: stats.risk === 'High' ? '0 0 15px rgba(248,113,113,0.1)' : 'none'
+                }}>{stats.risk} Risk Profile Detected</div>
               </div>
             </div>
 
-            {/* Split Screen Insights */}
+            {/* Split Threat / Data Layout */}
             <div style={styles.dashboardLayout}>
               
-              {/* AI Threat Alerts Feed */}
+              {/* Left Feed Panel */}
               <div style={styles.panel}>
-                <div style={styles.panelTitle}>🚨 Automated Forensic Threat Feed</div>
-                <div style={{maxHeight: '380px', overflowY: 'auto'}}>
+                <div style={styles.panelTitle}>
+                  <span style={{color: '#f87171'}}>🛑</span> Core System Threat Feed
+                </div>
+                <div style={{maxHeight: '400px', overflowY: 'auto', paddingRight: '5px'}}>
                   {alerts.length === 0 ? (
-                    <div style={{padding: '15px', backgroundColor: 'rgba(16, 185, 129, 0.05)', color: '#10b981', borderRadius: '8px', border: '1px solid rgba(16, 185, 129, 0.1)', fontSize: '13px'}}>
-                      ✅ Document clean. No anomalous indicators detected inside this file.
+                    <div style={{padding: '20px', backgroundColor: 'rgba(52, 211, 153, 0.03)', color: '#34d399', borderRadius: '12px', border: '1px solid rgba(52, 211, 153, 0.1)', fontSize: '14px', textAlign: 'center'}}>
+                      🎉 Integrity Verified. No anomalous indicators detected inside this manifest.
                     </div>
                   ) : (
                     alerts.map(alert => (
                       <div key={alert.id} style={styles.alertBox}>
-                        <div style={{display: 'flex', justifyContent: 'space-between', fontWeight: '600', marginBottom: '4px'}}>
-                          <span style={{color: '#f1f5f9'}}>{alert.supplier}</span>
-                          <span style={{color: '#ef4444'}}>Rs. {alert.amount.toLocaleString()}</span>
+                        <div style={{display: 'flex', justifyContent: 'space-between', fontWeight: '700', marginBottom: '6px', fontSize: '14px'}}>
+                          <span style={{color: '#ffffff'}}>{alert.supplier}</span>
+                          <span style={{color: '#f87171'}}>Rs. {alert.amount.toLocaleString()}</span>
                         </div>
-                        <div style={{color: '#94a3b8', fontSize: '11px'}}>Invoice Ref: <span style={{color: '#60a5fa', fontFamily: 'monospace'}}>{alert.invoice}</span></div>
-                        <div style={{color: '#f59e0b', fontSize: '11px', marginTop: '4px', fontWeight: '500'}}>Reason: {alert.reason}</div>
+                        <div style={{color: '#9ca3af', fontSize: '12px', marginBottom: '6px'}}>Invoice Registry: <span style={{color: '#60a5fa', fontFamily: 'monospace', fontStyle: 'normal', background: '#1e2937', padding: '2px 6px', borderRadius: '4px'}}>{alert.invoice}</span></div>
+                        <div style={{color: '#fbbf24', fontSize: '12px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '5px'}}>
+                          <span>⚠️</span> Trigger: {alert.reason}
+                        </div>
                       </div>
                     ))
                   )}
                 </div>
               </div>
 
-              {/* Ledger Sheet Breakdown */}
-              <div style={{...styles.panel, padding: '0', overflow: 'hidden'}}>
-                <div style={{...styles.panelTitle, padding: '20px 20px 10px 20px', margin: '0'}}>📋 Audit Ledger Records</div>
-                <div style={{maxHeight: '350px', overflowY: 'auto'}}>
+              {/* Right Ledger Panel */}
+              <div style={{...styles.panel, padding: '25px 0 0 0'}}>
+                <div style={{...styles.panelTitle, padding: '0 25px 15px 25px', margin: '0'}}>
+                  <span style={{color: '#60a5fa'}}>📊</span> Forensic Analytical Sheet Log
+                </div>
+                <div style={styles.tableContainer}>
                   <table style={styles.table}>
                     <thead>
                       <tr>
-                        <th style={styles.th}>Entity</th>
-                        <th style={styles.th}>Doc ID</th>
-                        <th style={styles.th}>Value</th>
-                        <th style={styles.th}>Action</th>
+                        <th style={{...styles.th, paddingLeft: '25px'}}>Counterparty</th>
+                        <th style={styles.th}>Document ID</th>
+                        <th style={styles.th}>Value Base</th>
+                        <th style={{...styles.th, paddingRight: '25px'}}>Protocol</th>
                       </tr>
                     </thead>
                     <tbody>
                       {alerts.map(alert => (
-                        <tr key={alert.id} style={{backgroundColor: 'rgba(255,255,255,0.01)'}}>
-                          <td style={styles.td}>{alert.supplier}</td>
+                        <tr key={alert.id} style={{backgroundColor: 'transparent', borderBottom: '1px solid #1f2937'}}>
+                          <td style={{...styles.td, paddingLeft: '25px', fontWeight: '600', color: '#ffffff'}}>{alert.supplier}</td>
                           <td style={{...styles.td, color: '#60a5fa', fontFamily: 'monospace'}}>{alert.invoice}</td>
-                          <td style={{...styles.td, fontWeight: '600', color: '#ffffff'}}>Rs. {alert.amount.toLocaleString()}</td>
-                          <td style={styles.td}>
-                            <span style={{backgroundColor: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', padding: '2px 8px', borderRadius: '4px', fontSize: '10px', border: '1px solid rgba(239, 68, 68, 0.2)'}}>Review</span>
+                          <td style={{...styles.td, fontWeight: '700', color: '#ffffff'}}>Rs. {alert.amount.toLocaleString()}</td>
+                          <td style={{...styles.td, paddingRight: '25px'}}>
+                            <span style={{backgroundColor: 'rgba(248, 113, 113, 0.1)', color: '#f87171', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', border: '1px solid rgba(248, 113, 113, 0.2)', fontWeight: '600'}}>Isolate</span>
                           </td>
                         </tr>
                       ))}
